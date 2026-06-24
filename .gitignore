@@ -1,0 +1,12 @@
+.env
+*.env
+config.local.py
+venv/
+*.pyc
+__pycache__/
+*.pst
+uploads/
+chunks/
+*.log
+.DS_Store
+.idea/
