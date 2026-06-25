@@ -920,6 +920,43 @@ def index():
 
 
 # ---------------------------------------------------------------------------
+# Admin — Log Viewer  (admin emails only)
+# ---------------------------------------------------------------------------
+
+@app.route("/admin/logs")
+def admin_logs():
+    if not is_admin():
+        return "Forbidden", 403
+    log_files = sorted(
+        [f for f in os.listdir(_LOG_DIR) if f.startswith("session_activity")],
+        reverse=True,
+    )
+    selected = request.args.get("file", log_files[0] if log_files else "")
+    lines = []
+    if selected and selected in log_files:
+        path = os.path.join(_LOG_DIR, selected)
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            lines = fh.readlines()
+        lines = [l.rstrip() for l in reversed(lines)]  # newest first
+    return render_template("admin_logs.html",
+                           log_files=log_files,
+                           selected=selected,
+                           lines=lines)
+
+
+@app.route("/admin/logs/download")
+def admin_logs_download():
+    if not is_admin():
+        return "Forbidden", 403
+    filename = request.args.get("file", "")
+    safe = os.path.basename(filename)
+    path = os.path.join(_LOG_DIR, safe)
+    if not safe.startswith("session_activity") or not os.path.exists(path):
+        return "Not found", 404
+    return send_file(path, as_attachment=True, download_name=safe)
+
+
+# ---------------------------------------------------------------------------
 # Chunked / Resumable Upload  (replaces single-shot /upload for large files)
 # ---------------------------------------------------------------------------
 # Flow:
