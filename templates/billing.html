@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Billing — PST Email Search</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    body { background: #f4f6f9; }
+    .navbar { background: #1a1f36; }
+    .navbar-brand { font-weight: 700; color: #fff !important; }
+
+    .plan-card {
+      border-radius: 14px; border: 2px solid #e5e7eb;
+      transition: border-color .2s, box-shadow .2s;
+      height: 100%;
+    }
+    .plan-card:hover { border-color: #6366f1; box-shadow: 0 6px 24px rgba(99,102,241,.12); }
+    .plan-card.current-plan { border-color: #2563eb; box-shadow: 0 4px 20px rgba(37,99,235,.15); }
+    .plan-price { font-size: 2.2rem; font-weight: 800; color: #111827; }
+    .plan-price sup { font-size: 1rem; font-weight: 600; vertical-align: super; }
+    .plan-price sub { font-size: .85rem; font-weight: 400; color: #6b7280; }
+    .plan-feature { font-size: .87rem; color: #374151; padding: 3px 0; }
+    .plan-feature i { color: #22c55e; margin-right: 6px; }
+
+    .usage-bar-wrap { background: #e5e7eb; border-radius: 99px; height: 10px; overflow: hidden; }
+    .usage-bar-fill { height: 100%; border-radius: 99px; transition: width .6s ease; }
+
+    .status-pill {
+      font-size: .72rem; padding: 2px 10px; border-radius: 99px;
+      font-weight: 600; letter-spacing: .3px;
+    }
+    .badge-past-due { background: #fef3c7; color: #92400e; }
+    .badge-canceled  { background: #fee2e2; color: #991b1b; }
+    .badge-active    { background: #d1fae5; color: #065f46; }
+  </style>
+</head>
+<body>
+
+<!-- Navbar -->
+<nav class="navbar navbar-dark px-4 py-2 mb-4">
+  <a class="navbar-brand" href="/">
+    <i class="bi bi-envelope-open-fill me-2"></i>PST Viewer
+  </a>
+  <div class="d-flex align-items-center gap-3">
+    <a href="/" class="btn btn-sm btn-outline-light">
+      <i class="bi bi-arrow-left me-1"></i>Back to App
+    </a>
+    <a href="{{ url_for('logout') }}" class="btn btn-sm btn-outline-danger">
+      <i class="bi bi-box-arrow-right me-1"></i>Sign out
+    </a>
+  </div>
+</nav>
+
+<div class="container" style="max-width: 960px">
+
+  <!-- Flash messages -->
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category }} alert-dismissible py-2 mb-3" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <!-- ── Current Plan Card ─────────────────────────────────────────────────── -->
+  <div class="card shadow-sm mb-4">
+    <div class="card-body p-4">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-3">
+        <div>
+          <h5 class="mb-1 fw-bold">
+            <i class="bi bi-credit-card-2-front me-2 text-primary"></i>Current Plan
+          </h5>
+          <div class="d-flex align-items-center gap-2">
+            <span class="fs-5 fw-semibold">{{ plan['name'] }}</span>
+            {% if plan_status == 'active' %}
+              <span class="status-pill badge-active">Active</span>
+            {% elif plan_status == 'past_due' %}
+              <span class="status-pill badge-past-due">⚠ Past due</span>
+            {% elif plan_status == 'canceled' %}
+              <span class="status-pill badge-canceled">Canceled</span>
+            {% endif %}
+          </div>
+        </div>
+
+        {% if has_subscription %}
+        <form method="POST" action="{{ url_for('billing_portal') }}">
+          <button class="btn btn-outline-secondary">
+            <i class="bi bi-gear me-1"></i>Manage subscription
+          </button>
+        </form>
+        {% endif %}
+      </div>
+
+      <!-- Storage usage bar -->
+      <div class="mb-1 d-flex justify-content-between small text-muted">
+        <span><i class="bi bi-hdd me-1"></i>Storage used</span>
+        <span>{{ storage_str }} of {{ quota_str }}</span>
+      </div>
+      <div class="usage-bar-wrap mb-1">
+        <div class="usage-bar-fill
+          {% if storage_pct >= 90 %}bg-danger
+          {% elif storage_pct >= 70 %}bg-warning
+          {% else %}bg-primary{% endif %}"
+          style="width: {{ storage_pct }}%"></div>
+      </div>
+      <div class="small text-muted">{{ storage_pct }}% used</div>
+
+      {% if plan_status == 'past_due' %}
+      <div class="alert alert-warning mt-3 mb-0 py-2 small">
+        <i class="bi bi-exclamation-triangle me-1"></i>
+        Your last payment failed. Please update your payment method via
+        <strong>Manage subscription</strong> to avoid losing access.
+      </div>
+      {% endif %}
+
+      {% if not stripe_configured %}
+      <div class="alert alert-info mt-3 mb-0 py-2 small">
+        <i class="bi bi-info-circle me-1"></i>
+        Stripe is not configured yet — set <code>STRIPE_SECRET_KEY</code> and
+        <code>STRIPE_PRICE_*</code> environment variables to enable payments.
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- ── Plan Cards ─────────────────────────────────────────────────────────── -->
+  <h5 class="fw-bold mb-3">
+    <i class="bi bi-rocket-takeoff me-2 text-primary"></i>Upgrade your plan
+  </h5>
+
+  <div class="row g-3 mb-5">
+    {% for key, p in plans.items() %}
+    <div class="col-sm-6 col-lg-3">
+      <div class="card plan-card {% if key == plan_name %}current-plan{% endif %}">
+        <div class="card-body d-flex flex-column p-4">
+
+          <!-- Badge for current plan -->
+          {% if key == plan_name %}
+          <div class="mb-2">
+            <span class="badge bg-primary-subtle text-primary border border-primary-subtle"
+                  style="font-size:.7rem">✓ Current plan</span>
+          </div>
+          {% endif %}
+
+          <div class="fw-bold fs-5 mb-1">{{ p['name'] }}</div>
+
+          <div class="plan-price mb-3">
+            {% if p['monthly'] == 0 %}
+              <span class="fs-3 fw-bold">Free</span>
+            {% else %}
+              <sup>$</sup>{{ p['monthly'] }}<sub>/mo</sub>
+            {% endif %}
+          </div>
+
+          <ul class="list-unstyled flex-grow-1 mb-4">
+            <li class="plan-feature">
+              <i class="bi bi-hdd-fill"></i>{{ p['gb'] }} GB storage
+            </li>
+            <li class="plan-feature">
+              <i class="bi bi-envelope-fill"></i>Unlimited emails
+            </li>
+            <li class="plan-feature">
+              <i class="bi bi-search"></i>Full-text search
+            </li>
+            <li class="plan-feature">
+              <i class="bi bi-folder2"></i>Folder tree browser
+            </li>
+            {% if key != 'free' %}
+            <li class="plan-feature">
+              <i class="bi bi-download"></i>Bulk export
+            </li>
+            <li class="plan-feature">
+              <i class="bi bi-bar-chart-steps"></i>Timeline view
+            </li>
+            {% endif %}
+            {% if key in ['pro', 'business'] %}
+            <li class="plan-feature">
+              <i class="bi bi-lightning-charge"></i>Atlas Search (fuzzy)
+            </li>
+            {% endif %}
+            {% if key == 'business' %}
+            <li class="plan-feature">
+              <i class="bi bi-people"></i>Priority support
+            </li>
+            {% endif %}
+          </ul>
+
+          <!-- CTA button -->
+          {% if key == plan_name %}
+            <button class="btn btn-outline-primary w-100" disabled>Current plan</button>
+          {% elif key == 'free' %}
+            <button class="btn btn-outline-secondary w-100" disabled>Always free</button>
+          {% elif stripe_configured and p['price_id'] %}
+            <form method="POST" action="{{ url_for('billing_create_checkout') }}">
+              <input type="hidden" name="plan" value="{{ key }}">
+              <button type="submit"
+                      class="btn btn-{{ p['color'] }} w-100 fw-semibold">
+                {% if plan_name == 'free' or plans[plan_name]['monthly'] < p['monthly'] %}
+                  Upgrade →
+                {% else %}
+                  Switch plan
+                {% endif %}
+              </button>
+            </form>
+          {% else %}
+            <button class="btn btn-outline-secondary w-100" disabled
+                    title="Payments not configured">
+              Unavailable
+            </button>
+          {% endif %}
+
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- ── FAQ ────────────────────────────────────────────────────────────────── -->
+  <h5 class="fw-bold mb-3"><i class="bi bi-question-circle me-2"></i>FAQ</h5>
+  <div class="accordion mb-5" id="faqAccordion">
+
+    <div class="accordion-item border-0 mb-2 rounded shadow-sm">
+      <h2 class="accordion-header">
+        <button class="accordion-button collapsed rounded" type="button"
+                data-bs-toggle="collapse" data-bs-target="#faq1">
+          What counts towards my storage quota?
+        </button>
+      </h2>
+      <div id="faq1" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+        <div class="accordion-body small text-muted">
+          Your uploaded PST files plus all extracted email attachments (PDFs, Word docs,
+          images, etc.). The MongoDB database itself doesn't count — only files on disk.
+        </div>
+      </div>
+    </div>
+
+    <div class="accordion-item border-0 mb-2 rounded shadow-sm">
+      <h2 class="accordion-header">
+        <button class="accordion-button collapsed rounded" type="button"
+                data-bs-toggle="collapse" data-bs-target="#faq2">
+          Can I cancel at any time?
+        </button>
+      </h2>
+      <div id="faq2" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+        <div class="accordion-body small text-muted">
+          Yes. Click <strong>Manage subscription</strong> to cancel. You keep access until
+          the end of your billing period, then drop back to the Free plan (1 GB).
+          Your data is never deleted automatically.
+        </div>
+      </div>
+    </div>
+
+    <div class="accordion-item border-0 mb-2 rounded shadow-sm">
+      <h2 class="accordion-header">
+        <button class="accordion-button collapsed rounded" type="button"
+                data-bs-toggle="collapse" data-bs-target="#faq3">
+          What happens if I exceed my quota?
+        </button>
+      </h2>
+      <div id="faq3" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+        <div class="accordion-body small text-muted">
+          New PST uploads will be blocked until you free up space or upgrade.
+          Existing data and search functionality remain fully accessible.
+        </div>
+      </div>
+    </div>
+
+    <div class="accordion-item border-0 mb-2 rounded shadow-sm">
+      <h2 class="accordion-header">
+        <button class="accordion-button collapsed rounded" type="button"
+                data-bs-toggle="collapse" data-bs-target="#faq4">
+          Is my payment information secure?
+        </button>
+      </h2>
+      <div id="faq4" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+        <div class="accordion-body small text-muted">
+          Yes. Payments are processed by <strong>Stripe</strong> — we never see or store
+          your card details. Stripe is PCI DSS Level 1 certified.
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
