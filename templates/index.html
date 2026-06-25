@@ -212,6 +212,13 @@
           </a>
         </li>
         {% endif %}
+        {% if current_user.email in ['andy@computerhelpsos.com'] %}
+        <li>
+          <a class="dropdown-item small" href="{{ url_for('admin_logs') }}">
+            <i class="bi bi-journal-text me-2 text-warning"></i>Admin — Logs
+          </a>
+        </li>
+        {% endif %}
         <li><hr class="dropdown-divider"></li>
         <li>
           <a class="dropdown-item small text-danger" href="{{ url_for('logout') }}">
