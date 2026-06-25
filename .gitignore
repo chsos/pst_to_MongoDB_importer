@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# App data — large/sensitive, not for version control
+Attachments/
+pst_files/
+csv_uploads/
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
