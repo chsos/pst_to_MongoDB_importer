@@ -907,7 +907,9 @@ def auth_microsoft():
 @app.route("/auth/microsoft/callback")
 def auth_microsoft_callback():
     try:
-        token    = oauth.microsoft.authorize_access_token()
+        token    = oauth.microsoft.authorize_access_token(
+            claims_options={"iss": {"essential": False}}
+        )
         userinfo = token.get("userinfo") or {}
         if not userinfo:
             import requests as _req
