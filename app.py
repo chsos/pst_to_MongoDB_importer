@@ -1158,31 +1158,52 @@ def upload():
     return jsonify({"job_id": job_id, "filename": f.filename})
 
 
-def _clamscan(path: str) -> tuple[bool, str]:
+def _clamscan(path: str, q: queue.Queue) -> tuple[bool, str]:
     """
     Scan a file with ClamAV. Returns (clean, message).
-    If clamdscan is not available, falls back to clamscan, then skips gracefully.
+    Emits keep-alive dots into q every 10 seconds so the browser stays connected.
     """
     for scanner in ("clamdscan", "clamscan"):
         try:
-            result = subprocess.run(
+            proc = subprocess.Popen(
                 [scanner, "--no-summary", path],
-                capture_output=True, text=True, timeout=120,
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, encoding="utf-8", errors="replace",
             )
-            if result.returncode == 0:
+            # Read output in a thread so we can emit keep-alives on the main thread
+            output_lines: list = []
+            done_event = threading.Event()
+
+            def _read():
+                for line in proc.stdout:
+                    output_lines.append(line)
+                done_event.set()
+
+            threading.Thread(target=_read, daemon=True).start()
+
+            elapsed = 0
+            while not done_event.wait(timeout=10):
+                elapsed += 10
+                q.put(f"Scanning… {elapsed}s elapsed")
+
+            proc.wait()
+            stdout = "".join(output_lines)
+
+            if proc.returncode == 0:
                 return True, "Clean"
-            if result.returncode == 1:
-                # Virus found — extract the detection name from output
-                for line in result.stdout.splitlines():
+            if proc.returncode == 1:
+                for line in stdout.splitlines():
                     if "FOUND" in line:
                         return False, line.strip()
                 return False, "Virus detected"
+            # returncode 2 = error
+            return True, f"Scan error (skipped): {stdout.strip()[:120]}"
+
         except FileNotFoundError:
             continue
-        except subprocess.TimeoutExpired:
-            return False, "Scan timed out"
         except Exception as e:
             return True, f"Scan skipped: {e}"
+
     return True, "ClamAV not installed — scan skipped"
 
 
@@ -1190,7 +1211,7 @@ def _run_import(job_id: str, pst_path: str, user_db: str, attach_dir: str, q: qu
     """Run pst_to_mongodb.py in a subprocess and feed stdout into the queue."""
     # ── Virus scan before import ──────────────────────────────────────────────
     q.put(f"Scanning {os.path.basename(pst_path)} for viruses…")
-    clean, scan_msg = _clamscan(pst_path)
+    clean, scan_msg = _clamscan(pst_path, q)
     if not clean:
         q.put(f"ERROR: File rejected — {scan_msg}")
         jobs[job_id]["status"] = "error"
