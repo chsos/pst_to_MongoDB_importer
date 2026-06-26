@@ -116,6 +116,19 @@ _LOG_SKIP_ENDPOINTS = frozenset({
     "static", "billing_usage", "progress", "build_index_route",
 })
 
+# Extensions that are never saved to disk or served, regardless of context
+_BLOCKED_EXTENSIONS = frozenset({
+    ".exe", ".bat", ".cmd", ".com", ".msi", ".dll", ".sys", ".drv",
+    ".scr", ".pif", ".vbs", ".vbe", ".js",  ".jse", ".wsf", ".wsh",
+    ".ps1", ".ps2", ".psm1", ".psd1", ".sh",  ".bash", ".zsh",
+    ".jar", ".class", ".war", ".ear",
+    ".hta", ".html5", ".xhtml",
+    ".reg", ".inf", ".ins", ".isp",
+    ".lnk", ".url", ".cpl", ".msc",
+    ".iso", ".img", ".dmg",
+    ".apk", ".ipa",
+})
+
 # Map file extensions → subfolder names under ATTACH_DIR
 _EXT_FOLDER = {
     # PDF
@@ -144,6 +157,8 @@ _EXT_FOLDER = {
 def _attach_folder(filename: str) -> str:
     """Return the per-user subfolder path (creating it if needed) for a given filename."""
     ext    = os.path.splitext(filename or "")[1].lower()
+    if ext in _BLOCKED_EXTENSIONS:
+        raise ValueError(f"File type '{ext}' is not allowed for security reasons.")
     subdir = _EXT_FOLDER.get(ext, "Other")
     path   = os.path.join(get_attach_dir(), subdir)
     os.makedirs(path, exist_ok=True)
