@@ -59,6 +59,9 @@ AUTH_DISABLED       = os.environ.get("AUTH_DISABLED",       "0") == "1"
 # Email config — for password-reset emails
 # Resend is used when RESEND_API_KEY is set; falls back to SMTP otherwise.
 # ---------------------------------------------------------------------------
+RECAPTCHA_SITE_KEY   = os.environ.get("RECAPTCHA_SITE_KEY",   "6LcPOTctAAAAAEChuRQ4S4MRKjF9RxKxhZliKKbA")
+RECAPTCHA_SECRET_KEY = os.environ.get("RECAPTCHA_SECRET_KEY", "6LcPOTctAAAAAGQ33pI3fOivpvOuo4LgG1TXtJQk")
+
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
 SMTP_HOST      = os.environ.get("SMTP_HOST",     "")
 SMTP_PORT      = int(os.environ.get("SMTP_PORT", "587"))
@@ -581,17 +584,42 @@ def billing_webhook():
 # Auth Routes
 # ---------------------------------------------------------------------------
 
+def _verify_recaptcha(token: str) -> bool:
+    """Return True if the reCAPTCHA v2 token is valid."""
+    if not RECAPTCHA_SECRET_KEY:
+        return True
+    import urllib.request
+    import urllib.parse
+    data = urllib.parse.urlencode({
+        "secret":   RECAPTCHA_SECRET_KEY,
+        "response": token,
+        "remoteip": request.remote_addr or "",
+    }).encode()
+    try:
+        with urllib.request.urlopen(
+            "https://www.google.com/recaptcha/api/siteverify", data, timeout=5
+        ) as resp:
+            result = json.loads(resp.read())
+        return bool(result.get("success"))
+    except Exception:
+        return False
+
+
 @app.route("/auth/login")
 def login_page():
     if current_user.is_authenticated:
         return redirect(url_for("index"))
     return render_template("login.html",
                            google_enabled=bool(GOOGLE_CLIENT_ID),
-                           ms_enabled=bool(MS_CLIENT_ID))
+                           ms_enabled=bool(MS_CLIENT_ID),
+                           recaptcha_site_key=RECAPTCHA_SITE_KEY)
 
 
 @app.route("/auth/login", methods=["POST"])
 def login_local():
+    if not _verify_recaptcha(request.form.get("g-recaptcha-response", "")):
+        flash("Please complete the CAPTCHA.", "danger")
+        return redirect(url_for("login_page"))
     email    = (request.form.get("email")    or "").strip().lower()
     password = (request.form.get("password") or "").strip()
     if not email or not password:
@@ -613,11 +641,15 @@ def register_page():
         return redirect(url_for("index"))
     return render_template("login.html", show_register=True,
                            google_enabled=bool(GOOGLE_CLIENT_ID),
-                           ms_enabled=bool(MS_CLIENT_ID))
+                           ms_enabled=bool(MS_CLIENT_ID),
+                           recaptcha_site_key=RECAPTCHA_SITE_KEY)
 
 
 @app.route("/auth/register", methods=["POST"])
 def register_local():
+    if not _verify_recaptcha(request.form.get("g-recaptcha-response", "")):
+        flash("Please complete the CAPTCHA.", "danger")
+        return redirect(url_for("register_page"))
     name     = (request.form.get("name")     or "").strip()
     email    = (request.form.get("email")    or "").strip().lower()
     password = (request.form.get("password") or "").strip()
