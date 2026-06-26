@@ -1158,8 +1158,50 @@ def upload():
     return jsonify({"job_id": job_id, "filename": f.filename})
 
 
+def _clamscan(path: str) -> tuple[bool, str]:
+    """
+    Scan a file with ClamAV. Returns (clean, message).
+    If clamdscan is not available, falls back to clamscan, then skips gracefully.
+    """
+    for scanner in ("clamdscan", "clamscan"):
+        try:
+            result = subprocess.run(
+                [scanner, "--no-summary", path],
+                capture_output=True, text=True, timeout=120,
+            )
+            if result.returncode == 0:
+                return True, "Clean"
+            if result.returncode == 1:
+                # Virus found — extract the detection name from output
+                for line in result.stdout.splitlines():
+                    if "FOUND" in line:
+                        return False, line.strip()
+                return False, "Virus detected"
+        except FileNotFoundError:
+            continue
+        except subprocess.TimeoutExpired:
+            return False, "Scan timed out"
+        except Exception as e:
+            return True, f"Scan skipped: {e}"
+    return True, "ClamAV not installed — scan skipped"
+
+
 def _run_import(job_id: str, pst_path: str, user_db: str, attach_dir: str, q: queue.Queue):
     """Run pst_to_mongodb.py in a subprocess and feed stdout into the queue."""
+    # ── Virus scan before import ──────────────────────────────────────────────
+    q.put(f"Scanning {os.path.basename(pst_path)} for viruses…")
+    clean, scan_msg = _clamscan(pst_path)
+    if not clean:
+        q.put(f"ERROR: File rejected — {scan_msg}")
+        jobs[job_id]["status"] = "error"
+        try:
+            os.remove(pst_path)
+        except Exception:
+            pass
+        q.put(None)
+        return
+    q.put(f"Virus scan passed: {scan_msg}")
+
     cmd = [
         sys.executable, "pst_to_mongodb.py",
         "--pst",        pst_path,
