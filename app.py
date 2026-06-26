@@ -599,6 +599,43 @@ def billing_webhook():
 # Auth Routes
 # ---------------------------------------------------------------------------
 
+def _send_notification_email(to_addr: str, subject: str, body_plain: str, body_html: str):
+    """Send a notification email using Resend or SMTP (same infrastructure as password reset)."""
+    if not to_addr:
+        return
+    try:
+        if RESEND_API_KEY:
+            import resend as _resend
+            _resend.api_key = RESEND_API_KEY
+            from_addr = SMTP_FROM or "onboarding@resend.dev"
+            _resend.Emails.send({
+                "from": from_addr, "to": [to_addr],
+                "subject": subject, "text": body_plain, "html": body_html,
+            })
+            return
+        if SMTP_HOST and SMTP_USER:
+            import smtplib
+            from email.mime.multipart import MIMEMultipart
+            from email.mime.text      import MIMEText
+            msg = MIMEMultipart("alternative")
+            msg["Subject"] = subject
+            msg["From"]    = SMTP_FROM or SMTP_USER
+            msg["To"]      = to_addr
+            msg.attach(MIMEText(body_plain, "plain", "utf-8"))
+            msg.attach(MIMEText(body_html,  "html",  "utf-8"))
+            if SMTP_USE_TLS:
+                server = smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10)
+                server.ehlo(); server.starttls()
+            else:
+                server = smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=10)
+            if SMTP_USER and SMTP_PASSWORD:
+                server.login(SMTP_USER, SMTP_PASSWORD)
+            server.sendmail(SMTP_FROM or SMTP_USER, [to_addr], msg.as_bytes())
+            server.quit()
+    except Exception as e:
+        app.logger.error("Notification email failed: %s", e)
+
+
 def _verify_recaptcha(token: str, min_score: float = 0.5) -> bool:
     """Return True if the reCAPTCHA v3 token is valid and score >= min_score."""
     if not RECAPTCHA_SECRET_KEY or not token:
@@ -1102,9 +1139,10 @@ def upload_finalise():
     job_id = str(uuid.uuid4())
     q = queue.Queue()
     jobs[job_id] = {"queue": q, "status": "running", "filename": filename}
+    user_email = current_user.email if current_user.is_authenticated else ""
 
     t = threading.Thread(target=_run_import,
-                         args=(job_id, save_path, user_db, attach_dir, q), daemon=True)
+                         args=(job_id, save_path, user_db, attach_dir, q, user_email), daemon=True)
     t.start()
 
     return jsonify({"job_id": job_id, "filename": filename})
@@ -1150,9 +1188,10 @@ def upload():
     job_id = str(uuid.uuid4())
     q = queue.Queue()
     jobs[job_id] = {"queue": q, "status": "running", "filename": f.filename}
+    user_email = current_user.email if current_user.is_authenticated else ""
 
     t = threading.Thread(target=_run_import,
-                         args=(job_id, save_path, user_db, attach_dir, q), daemon=True)
+                         args=(job_id, save_path, user_db, attach_dir, q, user_email), daemon=True)
     t.start()
 
     return jsonify({"job_id": job_id, "filename": f.filename})
@@ -1207,10 +1246,13 @@ def _clamscan(path: str, q: queue.Queue) -> tuple[bool, str]:
     return True, "ClamAV not installed — scan skipped"
 
 
-def _run_import(job_id: str, pst_path: str, user_db: str, attach_dir: str, q: queue.Queue):
+def _run_import(job_id: str, pst_path: str, user_db: str, attach_dir: str,
+                q: queue.Queue, user_email: str = ""):
     """Run pst_to_mongodb.py in a subprocess and feed stdout into the queue."""
+    filename = os.path.basename(pst_path)
+
     # ── Virus scan before import ──────────────────────────────────────────────
-    q.put(f"Scanning {os.path.basename(pst_path)} for viruses…")
+    q.put(f"Scanning {filename} for viruses…")
     clean, scan_msg = _clamscan(pst_path, q)
     if not clean:
         q.put(f"ERROR: File rejected — {scan_msg}")
@@ -1219,6 +1261,14 @@ def _run_import(job_id: str, pst_path: str, user_db: str, attach_dir: str, q: qu
             os.remove(pst_path)
         except Exception:
             pass
+        _send_notification_email(
+            user_email,
+            "PST upload rejected — virus detected",
+            f"Your file '{filename}' was rejected: {scan_msg}",
+            f"<p>Your file <strong>{filename}</strong> was rejected by our virus scanner.</p>"
+            f"<p>Detection: <code>{scan_msg}</code></p>"
+            f"<p>If you believe this is a false positive, please contact support.</p>",
+        )
         q.put(None)
         return
     q.put(f"Virus scan passed: {scan_msg}")
@@ -1243,7 +1293,18 @@ def _run_import(job_id: str, pst_path: str, user_db: str, attach_dir: str, q: qu
         for line in proc.stdout:
             q.put(line.rstrip())
         proc.wait()
-        jobs[job_id]["status"] = "done" if proc.returncode == 0 else "error"
+        status = "done" if proc.returncode == 0 else "error"
+        jobs[job_id]["status"] = status
+        if status == "done":
+            _send_notification_email(
+                user_email,
+                f"✅ PST import complete — {filename}",
+                f"Your file '{filename}' has been imported successfully and is ready to search at https://pstbrowser.com",
+                f"<p>Your file <strong>{filename}</strong> has been imported successfully.</p>"
+                f"<p><a href='https://pstbrowser.com' style='background:#2563eb;color:#fff;"
+                f"padding:10px 22px;border-radius:8px;text-decoration:none;font-weight:600;"
+                f"display:inline-block'>Search your emails</a></p>",
+            )
     except Exception as e:
         q.put(f"ERROR: {e}")
         jobs[job_id]["status"] = "error"
@@ -1277,7 +1338,7 @@ def progress(job_id: str):
     )
 
 
-def _build_index_progress(col, q: queue.Queue):
+def _build_index_progress(col, q: queue.Queue, user_email: str = ""):
     """Run in a background thread: build the text index and emit JSON progress events."""
     import time
 
@@ -1312,6 +1373,15 @@ def _build_index_progress(col, q: queue.Queue):
         emit(f"Index error: {result['error']}", 100, ok=False)
     else:
         emit("Search index ready!", 100, ok=True)
+        _send_notification_email(
+            user_email,
+            "✅ Search index ready — pstbrowser.com",
+            "Your search index has finished building. Full-text search is now available at https://pstbrowser.com",
+            "<p>Your search index has finished building.</p>"
+            "<p><a href='https://pstbrowser.com' style='background:#2563eb;color:#fff;"
+            "padding:10px 22px;border-radius:8px;text-decoration:none;font-weight:600;"
+            "display:inline-block'>Search your emails</a></p>",
+        )
 
     q.put(None)   # sentinel
 
@@ -1321,7 +1391,8 @@ def build_index_route():
     """SSE stream that builds the text index and reports progress."""
     col = get_col()
     q: queue.Queue = queue.Queue()
-    threading.Thread(target=_build_index_progress, args=(col, q), daemon=True).start()
+    user_email = current_user.email if current_user.is_authenticated else ""
+    threading.Thread(target=_build_index_progress, args=(col, q, user_email), daemon=True).start()
 
     def generate():
         while True:
