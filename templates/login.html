@@ -124,7 +124,8 @@
       {% endif %}
 
       <!-- Local login form -->
-      <form method="POST" action="{{ url_for('login_local') }}">
+      <form method="POST" action="{{ url_for('login_local') }}" data-recaptcha="login">
+        <input type="hidden" name="g-recaptcha-response" value="">
         <div class="mb-3">
           <label class="form-label" for="email">Email address</label>
           <input type="email" class="form-control" id="email" name="email"
@@ -138,9 +139,6 @@
           </div>
           <input type="password" class="form-control mt-1" id="password" name="password"
                  placeholder="••••••••" required>
-        </div>
-        <div class="mb-3 d-flex justify-content-center">
-          <div class="g-recaptcha" data-sitekey="{{ recaptcha_site_key }}"></div>
         </div>
         <button type="submit" class="btn btn-primary w-100">
           <i class="bi bi-box-arrow-in-right me-2"></i>Sign in
@@ -185,7 +183,8 @@
       {% endif %}
 
       <!-- Register form -->
-      <form method="POST" action="{{ url_for('register_local') }}">
+      <form method="POST" action="{{ url_for('register_local') }}" data-recaptcha="register">
+        <input type="hidden" name="g-recaptcha-response" value="">
         <div class="mb-3">
           <label class="form-label" for="name">Full name</label>
           <input type="text" class="form-control" id="name" name="name"
@@ -204,9 +203,6 @@
           <input type="password" class="form-control" id="password" name="password"
                  placeholder="••••••••" required minlength="8">
         </div>
-        <div class="mb-3 d-flex justify-content-center">
-          <div class="g-recaptcha" data-sitekey="{{ recaptcha_site_key }}"></div>
-        </div>
         <button type="submit" class="btn btn-primary w-100">
           <i class="bi bi-person-plus me-2"></i>Create account
         </button>
@@ -221,6 +217,21 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+  <script src="https://www.google.com/recaptcha/api.js?render={{ recaptcha_site_key }}"></script>
+  <script>
+    document.querySelectorAll('form[data-recaptcha]').forEach(function(form) {
+      form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        var action = form.dataset.recaptcha;
+        grecaptcha.ready(function() {
+          grecaptcha.execute('{{ recaptcha_site_key }}', {action: action}).then(function(token) {
+            var input = form.querySelector('input[name="g-recaptcha-response"]');
+            input.value = token;
+            form.submit();
+          });
+        });
+      });
+    });
+  </script>
 </body>
 </html>

@@ -584,9 +584,9 @@ def billing_webhook():
 # Auth Routes
 # ---------------------------------------------------------------------------
 
-def _verify_recaptcha(token: str) -> bool:
-    """Return True if the reCAPTCHA v2 token is valid."""
-    if not RECAPTCHA_SECRET_KEY:
+def _verify_recaptcha(token: str, min_score: float = 0.5) -> bool:
+    """Return True if the reCAPTCHA v3 token is valid and score >= min_score."""
+    if not RECAPTCHA_SECRET_KEY or not token:
         return True
     import urllib.request
     import urllib.parse
@@ -600,7 +600,7 @@ def _verify_recaptcha(token: str) -> bool:
             "https://www.google.com/recaptcha/api/siteverify", data, timeout=5
         ) as resp:
             result = json.loads(resp.read())
-        return bool(result.get("success"))
+        return bool(result.get("success")) and float(result.get("score", 0)) >= min_score
     except Exception:
         return False
 
