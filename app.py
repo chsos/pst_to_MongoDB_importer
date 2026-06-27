@@ -1007,6 +1007,96 @@ def index():
 
 
 # ---------------------------------------------------------------------------
+# Browse Attachments
+# ---------------------------------------------------------------------------
+
+_ATTACH_ICONS = {
+    "pdf": "bi-file-earmark-pdf text-danger",
+    "Word": "bi-file-earmark-word text-primary",
+    "Excel": "bi-file-earmark-excel text-success",
+    "PowerPoint": "bi-file-earmark-ppt text-warning",
+    "Images": "bi-image text-info",
+    "Videos": "bi-camera-video text-purple",
+    "Text": "bi-file-earmark-text text-secondary",
+    "Other": "bi-file-earmark text-muted",
+}
+
+@app.route("/attachments")
+def browse_attachments():
+    attach_dir = get_attach_dir()
+    folder     = request.args.get("folder", "")
+    q          = request.args.get("q", "").strip().lower()
+    page       = max(1, int(request.args.get("page", 1)))
+    per_page   = 50
+
+    # Build folder list with counts
+    folders = []
+    for name in ["pdf", "Word", "Excel", "PowerPoint", "Images", "Videos", "Text", "Other"]:
+        path = os.path.join(attach_dir, name)
+        if os.path.isdir(path):
+            count = sum(1 for f in os.listdir(path)
+                        if os.path.isfile(os.path.join(path, f)))
+            if count:
+                folders.append({"name": name, "count": count,
+                                 "icon": _ATTACH_ICONS.get(name, "bi-folder")})
+
+    # Default to first folder
+    if not folder and folders:
+        folder = folders[0]["name"]
+
+    # List files in selected folder
+    files = []
+    folder_path = os.path.join(attach_dir, folder) if folder else ""
+    if folder_path and os.path.isdir(folder_path):
+        for fname in sorted(os.listdir(folder_path)):
+            fpath = os.path.join(folder_path, fname)
+            if not os.path.isfile(fpath):
+                continue
+            if q and q not in fname.lower():
+                continue
+            stat = os.stat(fpath)
+            files.append({
+                "name":     fname,
+                "size":     stat.st_size,
+                "modified": datetime.datetime.fromtimestamp(stat.st_mtime),
+            })
+
+    total = len(files)
+    files = files[(page - 1) * per_page: page * per_page]
+    pages = max(1, -(-total // per_page))
+
+    def fmt_size(b):
+        if b < 1024:        return f"{b} B"
+        if b < 1048576:     return f"{b/1024:.1f} KB"
+        if b < 1073741824:  return f"{b/1048576:.1f} MB"
+        return f"{b/1073741824:.2f} GB"
+
+    return render_template("browse_attachments.html",
+                           folders=folders, folder=folder,
+                           files=files, total=total,
+                           page=page, pages=pages, per_page=per_page,
+                           q=q, fmt_size=fmt_size,
+                           icons=_ATTACH_ICONS)
+
+
+@app.route("/attachments/download")
+def download_attachment():
+    folder   = request.args.get("folder", "")
+    filename = request.args.get("file", "")
+    # Security: no path traversal
+    if not folder or not filename or ".." in folder or ".." in filename:
+        return "Invalid path", 400
+    ext = os.path.splitext(filename)[1].lower()
+    if ext in _BLOCKED_EXTENSIONS:
+        return "File type not allowed", 403
+    path = os.path.join(get_attach_dir(), os.path.basename(folder),
+                        os.path.basename(filename))
+    if not os.path.isfile(path):
+        return "Not found", 404
+    return send_file(path, as_attachment=True, download_name=filename)
+
+
+# ---------------------------------------------------------------------------
 # Clear My Data
 # ---------------------------------------------------------------------------
 
