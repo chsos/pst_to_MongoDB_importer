@@ -381,7 +381,16 @@ def is_admin() -> bool:
 
 
 def get_user_storage_bytes() -> int:
-    """Sum disk usage across the user's PST files and attachments."""
+    """Sum disk usage across the user's PST files and attachments.
+
+    Returns 0 when the user has no records in the database (orphaned
+    disk files don't count toward the displayed quota).
+    """
+    try:
+        if get_col().estimated_document_count() == 0:
+            return 0
+    except Exception:
+        pass
     total = 0
     for base in [get_upload_dir(), get_attach_dir()]:
         if os.path.isdir(base):
