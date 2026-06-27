@@ -1442,8 +1442,8 @@ def _run_import(job_id: str, pst_path: str, user_db: str, attach_dir: str,
             _send_notification_email(
                 user_email,
                 f"✅ PST import complete — {filename}",
-                f"Your file '{filename}' has been imported successfully and is ready to search at https://pstbrowser.com",
-                f"<p>Your file <strong>{filename}</strong> has been imported successfully.</p>"
+                f"Your file '{filename}' has been imported successfully. Now starting virus scan.",
+                f"<p>Your file <strong>{filename}</strong> has been imported successfully. Now starting virus scan.</p>"
                 f"<p><a href='https://pstbrowser.com' style='background:#2563eb;color:#fff;"
                 f"padding:10px 22px;border-radius:8px;text-decoration:none;font-weight:600;"
                 f"display:inline-block'>Search your emails</a></p>",
