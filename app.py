@@ -633,6 +633,7 @@ def _send_notification_email(to_addr: str, subject: str, body_plain: str, body_h
             server.sendmail(SMTP_FROM or SMTP_USER, [to_addr], msg.as_bytes())
             server.quit()
     except Exception as e:
+        print(f"[EMAIL ERROR] Notification email to {to_addr} failed: {e}", flush=True)
         app.logger.error("Notification email failed: %s", e)
 
 
