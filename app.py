@@ -1348,12 +1348,13 @@ def _clamscan(path: str, q: queue.Queue) -> tuple[bool, str]:
     for scanner in ("clamdscan", "clamscan"):
         try:
             proc = subprocess.Popen(
-                [scanner, "--no-summary", path],
-                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                [scanner, "--no-summary", "--max-filesize=4000M", "--max-scansize=4000M", path],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                 text=True, encoding="utf-8", errors="replace",
             )
-            # Read output in a thread so we can emit keep-alives on the main thread
+            # Read stdout and stderr in threads so we can emit keep-alives
             output_lines: list = []
+            stderr_lines: list = []
             done_event = threading.Event()
 
             def _read():
@@ -1361,7 +1362,12 @@ def _clamscan(path: str, q: queue.Queue) -> tuple[bool, str]:
                     output_lines.append(line)
                 done_event.set()
 
+            def _read_err():
+                for line in proc.stderr:
+                    stderr_lines.append(line)
+
             threading.Thread(target=_read, daemon=True).start()
+            threading.Thread(target=_read_err, daemon=True).start()
 
             elapsed = 0
             while not done_event.wait(timeout=10):
@@ -1369,7 +1375,9 @@ def _clamscan(path: str, q: queue.Queue) -> tuple[bool, str]:
                 q.put(f"Scanning… {elapsed}s elapsed")
 
             proc.wait()
-            stdout = "".join(output_lines)
+            stdout = "".join(output_lines).strip()
+            stderr = "".join(stderr_lines).strip()
+            combined = (stdout or stderr)[:200]
 
             if proc.returncode == 0:
                 return True, "Clean"
@@ -1379,7 +1387,7 @@ def _clamscan(path: str, q: queue.Queue) -> tuple[bool, str]:
                         return False, line.strip()
                 return False, "Virus detected"
             # returncode 2 = error
-            return True, f"Scan error (skipped): {stdout.strip()[:120]}"
+            return True, f"Scan error (skipped): {combined}"
 
         except FileNotFoundError:
             continue
