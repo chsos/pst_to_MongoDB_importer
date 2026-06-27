@@ -1095,7 +1095,7 @@ def browse_attachments():
 
 
 @app.route("/attachments/download")
-def download_attachment():
+def download_attachment_file():
     folder   = request.args.get("folder", "")
     filename = request.args.get("file", "")
     # Security: no path traversal
