@@ -1007,6 +1007,40 @@ def index():
 
 
 # ---------------------------------------------------------------------------
+# Clear My Data
+# ---------------------------------------------------------------------------
+
+@app.route("/account/clear-data", methods=["POST"])
+def clear_user_data():
+    """Delete all files and database records for the currently logged-in user."""
+    confirm = request.get_json(force=True).get("confirm", "")
+    if confirm != current_user.email:
+        return jsonify({"error": "Confirmation email does not match."}), 400
+
+    errors = []
+
+    # Delete files from disk
+    import shutil
+    for path in [get_upload_dir(), get_attach_dir()]:
+        if os.path.isdir(path):
+            try:
+                shutil.rmtree(path)
+            except Exception as e:
+                errors.append(str(e))
+
+    # Drop the user's MongoDB database
+    try:
+        _get_client().drop_database(get_db().name)
+    except Exception as e:
+        errors.append(str(e))
+
+    if errors:
+        return jsonify({"error": "Partial failure: " + "; ".join(errors)}), 500
+
+    return jsonify({"ok": True})
+
+
+# ---------------------------------------------------------------------------
 # Admin — Log Viewer  (admin emails only)
 # ---------------------------------------------------------------------------
 

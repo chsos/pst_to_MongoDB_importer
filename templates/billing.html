@@ -288,6 +288,79 @@
   </div>
 </div>
 
+<!-- Clear My Data Section -->
+<div class="container py-4">
+  <div class="card border-0 shadow-sm border-danger" style="border:1.5px solid #fee2e2 !important">
+    <div class="card-body">
+      <h5 class="text-danger fw-bold"><i class="bi bi-trash3 me-2"></i>Danger Zone</h5>
+      <p class="text-muted small mb-3">
+        Permanently delete all your uploaded PST files, attachments, and email data from the server.
+        This cannot be undone.
+      </p>
+      <button class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#clearDataModal">
+        <i class="bi bi-trash3 me-1"></i>Clear All My Data
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirmation Modal -->
+<div class="modal fade" id="clearDataModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header border-0">
+        <h5 class="modal-title text-danger fw-bold"><i class="bi bi-exclamation-triangle me-2"></i>Clear All My Data</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p>This will permanently delete:</p>
+        <ul class="small text-muted">
+          <li>All uploaded PST files</li>
+          <li>All extracted attachments</li>
+          <li>All imported email records</li>
+        </ul>
+        <p class="fw-semibold">This cannot be undone.</p>
+        <label class="form-label small">Type your email address to confirm:</label>
+        <input type="email" id="clearConfirmEmail" class="form-control form-control-sm"
+               placeholder="{{ current_user.email }}">
+        <div id="clearDataError" class="text-danger small mt-2" style="display:none"></div>
+      </div>
+      <div class="modal-footer border-0">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-danger btn-sm" id="clearDataBtn">
+          <i class="bi bi-trash3 me-1"></i>Delete Everything
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+document.getElementById('clearDataBtn').addEventListener('click', function() {
+  const email = document.getElementById('clearConfirmEmail').value.trim();
+  const errEl = document.getElementById('clearDataError');
+  errEl.style.display = 'none';
+
+  fetch('/account/clear-data', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({confirm: email}),
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.ok) {
+      window.location.href = '/?cleared=1';
+    } else {
+      errEl.textContent = data.error || 'Something went wrong.';
+      errEl.style.display = 'block';
+    }
+  })
+  .catch(() => {
+    errEl.textContent = 'Request failed. Please try again.';
+    errEl.style.display = 'block';
+  });
+});
+</script>
 </body>
 </html>
