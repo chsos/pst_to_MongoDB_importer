@@ -564,19 +564,25 @@ def billing_webhook():
     obj  = event["data"]["object"]
     etype= event["type"]
 
+    def _sget(o, key, default=None):
+        try:
+            return o[key]
+        except (KeyError, TypeError):
+            return default
+
     if etype == "checkout.session.completed":
-        sub_id = obj.get("subscription")
-        cid    = obj.get("customer")
+        sub_id = _sget(obj, "subscription")
+        cid    = _sget(obj, "customer")
         if sub_id and cid:
             sub = _stripe_module.Subscription.retrieve(sub_id)
             _apply_stripe_subscription(cid, sub)
 
     elif etype in ("customer.subscription.updated",
                    "customer.subscription.created"):
-        _apply_stripe_subscription(obj.get("customer", ""), obj)
+        _apply_stripe_subscription(_sget(obj, "customer", ""), obj)
 
     elif etype == "customer.subscription.deleted":
-        cid = obj.get("customer", "")
+        cid = _sget(obj, "customer", "")
         if cid:
             get_users_col().update_one(
                 {"stripe_customer_id": cid},
@@ -585,7 +591,7 @@ def billing_webhook():
             )
 
     elif etype == "invoice.payment_failed":
-        cid = obj.get("customer", "")
+        cid = _sget(obj, "customer", "")
         if cid:
             get_users_col().update_one(
                 {"stripe_customer_id": cid},
