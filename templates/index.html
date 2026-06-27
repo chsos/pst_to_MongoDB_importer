@@ -2530,6 +2530,7 @@ async function bulkDelete() {
     _updateBulkBar();
     showToast(`Deleted ${(d.deleted || 0).toLocaleString()} record${d.deleted !== 1 ? 's' : ''}.`, 'danger');
     loadRecords(st.page);
+    loadStorageBar();
   } catch {
     showToast('Delete failed — see console for details.', 'danger');
   }
@@ -2681,7 +2682,7 @@ async function setupAtlasIndex() {
 })();
 
 // Load storage usage bar in navbar
-(async () => {
+async function loadStorageBar() {
   try {
     const r = await fetch('/billing/usage');
     if (!r.ok) return;
@@ -2697,7 +2698,8 @@ async function setupAtlasIndex() {
       : `${d.storage_gb.toFixed(1)} GB`;
     label.textContent = `${usedStr} / ${d.quota_gb} GB`;
   } catch { /* not logged in or billing not configured */ }
-})();
+}
+loadStorageBar();
 
 // ================================================================
 // Type filter buttons
@@ -3338,6 +3340,7 @@ async function doClear() {
     const r=await fetch('/clear',{method:'POST'}); const d=await r.json();
     clearModal.hide();
     await loadStats(); loadTypeCounts(); loadRecords(1);
+    loadStorageBar();
     showToast(`Database cleared — ${d.deleted.toLocaleString()} records deleted.`, 'danger');
   } catch(e) { showToast('Error: '+e,'danger'); }
   finally { clearBtn.disabled=false; clearBtn.innerHTML='<i class="bi bi-trash3 me-1"></i>Delete All Records'; }
@@ -4309,6 +4312,7 @@ async function doClearFiles() {
     result.textContent =
       `Deleted ${d.deleted.toLocaleString()} file${d.deleted !== 1 ? 's' : ''}` +
       (d.errors ? ` (${d.errors} error${d.errors !== 1 ? 's' : ''})` : '') + '.';
+    loadStorageBar();
     // Reset confirmation field & reload folder counts
     document.getElementById('clear-confirm-text').value = '';
     _browseInited = false;     // force folder-dropdown refresh on next browse
