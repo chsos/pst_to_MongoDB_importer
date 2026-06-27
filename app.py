@@ -1131,13 +1131,16 @@ def clear_user_data():
             try:
                 shutil.rmtree(path)
             except Exception as e:
-                errors.append(str(e))
+                errors.append(f"Failed to delete {path}: {e}")
+            else:
+                if os.path.isdir(path):
+                    errors.append(f"Directory still exists after deletion: {path}")
 
     # Drop the user's MongoDB database
     try:
         _get_client().drop_database(get_db().name)
     except Exception as e:
-        errors.append(str(e))
+        errors.append(f"Failed to drop database: {e}")
 
     if errors:
         return jsonify({"error": "Partial failure: " + "; ".join(errors)}), 500
