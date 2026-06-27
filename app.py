@@ -1415,6 +1415,13 @@ def _run_import(job_id: str, pst_path: str, user_db: str, attach_dir: str,
         q.put(None)
         return
     q.put(f"Virus scan passed: {scan_msg}")
+    _send_notification_email(
+        user_email,
+        f"✅ Virus scan passed — {filename}",
+        f"Your file '{filename}' passed the virus scan and is now being imported.",
+        f"<p>Your file <strong>{filename}</strong> passed the virus scan successfully.</p>"
+        f"<p>The import is now running. You will receive another email when it is complete.</p>",
+    )
 
     cmd = [
         sys.executable, "pst_to_mongodb.py",
