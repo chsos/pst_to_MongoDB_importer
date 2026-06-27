@@ -3082,20 +3082,8 @@ def rebuild_file_cache():
 
 
 def _effective_attach_dir() -> str:
-    """
-    Return the directory that Browse Attachments should scan.
-    Normally this is the per-user subdirectory returned by get_attach_dir().
-    If that directory has no files (e.g. legacy data imported before per-user
-    directories were introduced) we fall back to the shared ATTACH_DIR root so
-    that pre-existing attachment files are still visible.
-    """
-    user_dir = get_attach_dir()
-    # Check whether the user dir contains any actual files
-    for _, _, fnames in os.walk(user_dir):
-        if fnames:
-            return user_dir   # user dir has files → use it
-    # No files found in user dir — use legacy root
-    return ATTACH_DIR
+    """Return the per-user attachment directory."""
+    return get_attach_dir()
 
 
 @app.route("/attach-folders")
