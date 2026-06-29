@@ -779,14 +779,14 @@ def change_password():
 
 def _send_reset_email(to_addr: str, reset_url: str):
     """Send a password-reset link. Uses Resend when RESEND_API_KEY is set, else SMTP."""
-    subject = "Reset your PST Email Search password"
+    subject = "Reset your PST Browser password"
     body_plain = (
         f"Hi,\n\n"
         f"We received a request to reset the password for your account ({to_addr}).\n\n"
         f"Click the link below to choose a new password (valid for 1 hour):\n\n"
         f"{reset_url}\n\n"
         f"If you didn't request this, you can safely ignore this email.\n\n"
-        f"— PST Email Search"
+        f"— PST Browser"
     )
     body_html = (
         f"<p>Hi,</p>"
