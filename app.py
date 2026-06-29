@@ -1059,10 +1059,13 @@ def browse_attachments():
     if not folder and folders:
         folder = folders[0]["name"]
 
-    # List files in selected folder
+    # List files — search all folders when query is present, else selected folder only
     files = []
-    folder_path = os.path.join(attach_dir, folder) if folder else ""
-    if folder_path and os.path.isdir(folder_path):
+    search_folders = [f["name"] for f in folders] if q else ([folder] if folder else [])
+    for search_folder in search_folders:
+        folder_path = os.path.join(attach_dir, search_folder)
+        if not os.path.isdir(folder_path):
+            continue
         for fname in sorted(os.listdir(folder_path)):
             fpath = os.path.join(folder_path, fname)
             if not os.path.isfile(fpath):
@@ -1072,6 +1075,7 @@ def browse_attachments():
             stat = os.stat(fpath)
             files.append({
                 "name":     fname,
+                "folder":   search_folder,
                 "size":     stat.st_size,
                 "modified": datetime.datetime.fromtimestamp(stat.st_mtime),
             })
