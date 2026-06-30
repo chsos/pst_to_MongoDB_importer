@@ -3016,6 +3016,19 @@ def search_files():
 
     pdf_cache_ready = cache_counts.get("pdf", 0) > 0
 
+    # ── 3. Filename matches (files not already in content results) ───────────
+    content_keys = {(r["folder"], r["filename"]) for r in results}
+    for fn in ["pdf", "Word", "Excel", "PowerPoint", "Images", "Videos", "Text", "Other"]:
+        if folder not in ("all", fn):
+            continue
+        fp = os.path.join(_ad, fn)
+        if not os.path.isdir(fp):
+            continue
+        for fname in os.listdir(fp):
+            if q_lower in fname.lower() and os.path.isfile(os.path.join(fp, fname)):
+                if (fn, fname) not in content_keys:
+                    results.append({"folder": fn, "filename": fname, "snippet": None})
+
     return jsonify({
         "q":               q,
         "folder":          folder,

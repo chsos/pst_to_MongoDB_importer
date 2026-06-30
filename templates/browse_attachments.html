@@ -160,61 +160,42 @@ function doSearch() {
   const qLower = q.toLowerCase();
 
   // Run filename search and content search in parallel
-  const fetchOpts = { credentials: 'same-origin' };
-  const filenameSearch = fetch('/attachments/search-names?q=' + encodeURIComponent(q), fetchOpts)
-    .then(r => { if (!r.ok) throw new Error('names HTTP ' + r.status); return r.json(); })
-    .catch(e => { console.warn('Filename search error:', e); return { results: [], error: e.message }; });
-  const contentSearch = fetch('/search-files?q=' + encodeURIComponent(q) + '&folder=all', fetchOpts)
-    .then(r => { if (!r.ok) throw new Error('content HTTP ' + r.status); return r.json(); })
-    .catch(e => { console.warn('Content search error:', e); return { results: [], error: e.message }; });
-
-  Promise.all([filenameSearch, contentSearch]).then(([nameData, contentData]) => {
-    const errors = [nameData.error, contentData.error].filter(Boolean);
-    if (errors.length === 2) {
-      statusLabel.textContent = 'Search error';
-      searchResults.innerHTML = '<div class="p-4 text-center text-danger">Search failed: ' + escHtml(errors.join(', ')) + '</div>';
-      return;
-    }
-    // Merge: content results first (have snippets), then filename-only matches not already included
-    const seen = new Set();
-    const merged = [];
-    for (const r of (contentData.results || [])) {
-      const key = r.folder + '/' + r.filename;
-      if (!seen.has(key)) { seen.add(key); merged.push(r); }
-    }
-    for (const r of (nameData.results || [])) {
-      const key = r.folder + '/' + r.filename;
-      if (!seen.has(key)) { seen.add(key); merged.push({ ...r, snippet: '' }); }
-    }
-
-    if (merged.length === 0) {
-      statusLabel.textContent = '0 results for "' + q + '"';
-      searchResults.innerHTML = '<div class="p-5 text-center text-muted"><i class="bi bi-search fs-1 d-block mb-2"></i>No files found matching "' + escHtml(q) + '".</div>';
-      return;
-    }
-    statusLabel.textContent = merged.length + ' result' + (merged.length !== 1 ? 's' : '') + ' for "' + q + '"';
-    let rows = merged.map(r => `
-      <tr>
-        <td class="text-center"><i class="bi ${iconClass(r.folder)} fs-5"></i></td>
-        <td class="file-name">${highlightSnippet(escHtml(r.filename), q)}</td>
-        <td class="text-muted small">${escHtml(r.folder)}</td>
-        <td class="snippet">${r.snippet ? highlightSnippet(r.snippet, q) : '<span class="text-muted fst-italic">filename match</span>'}</td>
-        <td><a href="/attachments/download?folder=${encodeURIComponent(r.folder)}&file=${encodeURIComponent(r.filename)}" class="btn btn-sm btn-outline-primary"><i class="bi bi-download"></i></a></td>
-      </tr>`).join('');
-    searchResults.innerHTML = `
-      <div class="table-responsive">
-        <table class="table table-hover file-table mb-0">
-          <thead class="table-light"><tr>
-            <th style="width:40px"></th>
-            <th>Filename</th>
-            <th style="width:110px">Type</th>
-            <th>Snippet</th>
-            <th style="width:80px"></th>
-          </tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>`;
-  });
+  fetch('/search-files?q=' + encodeURIComponent(q) + '&folder=all', { credentials: 'same-origin' })
+    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(data => {
+      const results = data.results || [];
+      if (results.length === 0) {
+        statusLabel.textContent = '0 results for "' + q + '"';
+        searchResults.innerHTML = '<div class="p-5 text-center text-muted"><i class="bi bi-search fs-1 d-block mb-2"></i>No files found matching "' + escHtml(q) + '".</div>';
+        return;
+      }
+      statusLabel.textContent = results.length + ' result' + (results.length !== 1 ? 's' : '') + ' for "' + q + '"';
+      let rows = results.map(r => `
+        <tr>
+          <td class="text-center"><i class="bi ${iconClass(r.folder)} fs-5"></i></td>
+          <td class="file-name">${highlightSnippet(escHtml(r.filename), q)}</td>
+          <td class="text-muted small">${escHtml(r.folder)}</td>
+          <td class="snippet">${r.snippet ? highlightSnippet(r.snippet, q) : '<span class="text-muted fst-italic">filename match</span>'}</td>
+          <td><a href="/attachments/download?folder=${encodeURIComponent(r.folder)}&file=${encodeURIComponent(r.filename)}" class="btn btn-sm btn-outline-primary"><i class="bi bi-download"></i></a></td>
+        </tr>`).join('');
+      searchResults.innerHTML = `
+        <div class="table-responsive">
+          <table class="table table-hover file-table mb-0">
+            <thead class="table-light"><tr>
+              <th style="width:40px"></th>
+              <th>Filename</th>
+              <th style="width:110px">Type</th>
+              <th>Snippet</th>
+              <th style="width:80px"></th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>`;
+    })
+    .catch(e => {
+      statusLabel.textContent = 'Search failed';
+      searchResults.innerHTML = '<div class="p-4 text-center text-danger">Search error: ' + escHtml(e.message) + '</div>';
+    });
 }
 
 function clearSearch() {
