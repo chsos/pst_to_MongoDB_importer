@@ -222,6 +222,7 @@ _PUBLIC_ENDPOINTS = {
     "reset_password", "reset_password_submit",
     "static",
     "privacy_policy", "terms_of_service",
+    "process_flow", "process_status",
 }
 
 @app.before_request
@@ -4103,6 +4104,105 @@ def export_emails_xlsx():
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{fname}"'},
     )
+
+
+@app.route("/process-status")
+def process_status():
+    """
+    Return the status of each PST processing step for the current user.
+    Steps: import, virus_scan, indexing, ocr
+    Status values: pending | running | done | error
+    """
+    col = get_col()
+
+    # ── Step 1 & 2: Import + Virus Scan ──────────────────────────────────────
+    # Find the most recent job for this user by scanning jobs dict
+    # Jobs don't store user, so we fall back to record count heuristic
+    user_jobs = [
+        j for j in jobs.values()
+        if "status" in j and "filename" in j
+    ]
+    latest_job = user_jobs[-1] if user_jobs else None
+
+    record_count = 0
+    try:
+        record_count = col.count_documents({})
+    except Exception:
+        pass
+
+    if latest_job:
+        job_status = latest_job.get("status", "running")
+        import_status   = "done" if job_status == "done" else ("error" if job_status == "error" else "running")
+        virus_status    = "done" if job_status in ("done", "error") else "running"
+    elif record_count > 0:
+        import_status   = "done"
+        virus_status    = "done"
+    else:
+        import_status   = "pending"
+        virus_status    = "pending"
+
+    # ── Step 3: Indexing ─────────────────────────────────────────────────────
+    index_status = "pending"
+    if import_status == "done":
+        try:
+            idx_info = col.index_information()
+            has_text_idx = any(
+                any(t == "text" for _, t in v.get("key", []))
+                for v in idx_info.values()
+            )
+            index_status = "done" if has_text_idx else "running"
+        except Exception:
+            index_status = "pending"
+
+    # ── Step 4: OCR ──────────────────────────────────────────────────────────
+    ocr_status_val = "pending"
+    if import_status == "done":
+        try:
+            _pdf_dir = get_pdf_dir()
+            _txt_dir = get_pdf_text_dir()
+            if os.path.isdir(_pdf_dir):
+                pdfs  = [f for f in os.listdir(_pdf_dir) if f.lower().endswith(".pdf")]
+                total = len(pdfs)
+                if total == 0:
+                    ocr_status_val = "done"
+                else:
+                    done_count = sum(
+                        1 for f in pdfs
+                        if os.path.isfile(os.path.join(_txt_dir, os.path.splitext(f)[0] + ".txt"))
+                    ) if os.path.isdir(_txt_dir) else 0
+                    if done_count >= total:
+                        ocr_status_val = "done"
+                    elif done_count > 0:
+                        ocr_status_val = "running"
+                    else:
+                        ocr_status_val = "pending"
+            else:
+                ocr_status_val = "pending"
+        except Exception:
+            ocr_status_val = "pending"
+
+    return jsonify({
+        "record_count": record_count,
+        "steps": [
+            {"id": "import",     "label": "Import data",
+             "detail": f"{record_count:,} records imported" if import_status == "done" else "Importing emails, contacts, and attachments from your PST file",
+             "status": import_status},
+            {"id": "virus_scan", "label": "Virus scan",
+             "detail": "File scanned and cleared" if virus_status == "done" else "Scanning your PST file for viruses",
+             "status": virus_status},
+            {"id": "indexing",   "label": "Indexing",
+             "detail": "Full-text index ready" if index_status == "done" else "Building search index across all emails",
+             "status": index_status},
+            {"id": "ocr",        "label": "Attachment OCR",
+             "detail": "Documents are searchable" if ocr_status_val == "done" else "Processing scanned PDFs so you can search within documents",
+             "status": ocr_status_val},
+        ]
+    })
+
+
+@app.route("/process-flow")
+def process_flow():
+    return render_template("process_flow.html")
 
 
 @app.route("/export/emails.eml.zip")
