@@ -1592,12 +1592,16 @@
           <button class="btn btn-success" onclick="exDownloadRecords()">
             <i class="bi bi-filetype-csv me-1"></i>Download CSV
           </button>
+          <button class="btn btn-outline-primary" onclick="exDownloadRecordsEml()">
+            <i class="bi bi-envelope-paper me-1"></i>Download .eml (ZIP)
+          </button>
           <span id="ex-rec-count" class="small text-muted"></span>
         </div>
 
         <div class="mt-3 p-2 bg-light rounded small text-muted">
           <i class="bi bi-info-circle me-1"></i>
-          Columns: Date · From · To · CC · Subject · Folder · Type · Has Attachments · Body (first 500 chars)
+          CSV columns: Date · From · To · CC · Subject · Folder · Type · Has Attachments · Body (first 500 chars).
+          The .eml download packages each matching email as a full RFC 2822 message (subject, headers, and complete body) inside a ZIP — capped at 10,000 emails per download.
         </div>
       </div>
     </div>
@@ -5621,6 +5625,15 @@ function _exRecParams() {
 
 function exDownloadRecords() {
   const url = '/export/emails.csv?' + _exRecParams();
+  _triggerDownload(url);
+}
+
+function exDownloadRecordsEml() {
+  const params = _exRecParams();
+  if (!params.has('limit') || parseInt(params.get('limit'), 10) > 10000) {
+    params.set('limit', '10000');
+  }
+  const url = '/export/emails.eml.zip?' + params;
   _triggerDownload(url);
 }
 

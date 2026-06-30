@@ -4101,6 +4101,58 @@ def export_emails_xlsx():
     )
 
 
+@app.route("/export/emails.eml.zip")
+def export_emails_eml_zip():
+    """Export all matching records as individual .eml files inside a ZIP archive."""
+    import zipfile
+
+    col   = get_col()
+    limit = min(int(request.args.get("limit", 10_000)), 10_000)
+    query, q = _build_record_query(request.args)
+    if q:
+        _ensure_text_index(col)
+        query["$text"] = {"$search": q}
+
+    sort_by = request.args.get("sort", "date")
+    order   = int(request.args.get("order", -1))
+    if sort_by not in {"date", "subject", "from_addr"}:
+        sort_by = "date"
+    if order not in (-1, 1):
+        order = -1
+
+    proj = {
+        "date": 1, "from_addr": 1, "to_addrs": 1, "cc_addrs": 1,
+        "subject": 1, "folder_path": 1, "body_plain": 1, "body_html": 1,
+        "message_id": 1,
+    }
+    docs = list(col.find(query, proj).sort(sort_by, order).limit(limit))
+
+    buf = io.BytesIO()
+    seen_names: dict = {}
+
+    with zipfile.ZipFile(buf, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for i, doc in enumerate(docs, 1):
+            base = _eml_filename(doc)
+            name = base
+            if name in seen_names:
+                stem, ext = name.rsplit(".", 1)
+                name = f"{stem}_{i}.{ext}"
+            seen_names[name] = True
+            try:
+                eml_bytes = _build_eml(doc)
+            except Exception:
+                eml_bytes = b""
+            zf.writestr(name, eml_bytes)
+
+    buf.seek(0)
+    fname = _export_filename(request.args, "eml.zip")
+    return Response(
+        buf.read(),
+        mimetype="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )
+
+
 @app.route("/export/contacts.csv")
 def export_contacts_csv():
     """Export contacts in Outlook-compatible CSV format (re-importable)."""
