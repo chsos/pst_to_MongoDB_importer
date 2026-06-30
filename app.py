@@ -1515,7 +1515,10 @@ def _run_import(job_id: str, pst_path: str, user_db: str, attach_dir: str,
         f"✅ Virus scan passed — {filename}",
         f"Your file '{filename}' passed the virus scan and is now being imported.",
         f"<p>Your file <strong>{filename}</strong> passed the virus scan successfully.</p>"
-        f"<p>The import is now running. You will receive another email when it is complete.</p>",
+        f"<p>The import is now running. Large files can take several hours. You will receive an email after each step completes.</p>"
+        f"<p><a href='https://pstbrowser.com/process-flow' style='background:#2563eb;color:#fff;"
+        f"padding:10px 22px;border-radius:8px;text-decoration:none;font-weight:600;"
+        f"display:inline-block'>View processing status</a></p>",
     )
 
     cmd = [
@@ -1544,11 +1547,12 @@ def _run_import(job_id: str, pst_path: str, user_db: str, attach_dir: str,
             _send_notification_email(
                 user_email,
                 f"✅ PST import complete — {filename}",
-                f"Your file '{filename}' has been imported successfully. Now starting virus scan.",
-                f"<p>Your file <strong>{filename}</strong> has been imported successfully. Now starting virus scan.</p>"
-                f"<p><a href='https://pstbrowser.com' style='background:#2563eb;color:#fff;"
+                f"Your file '{filename}' has been imported successfully. Indexing will begin shortly.",
+                f"<p>Your file <strong>{filename}</strong> has been imported successfully.</p>"
+                f"<p>Search indexing is now starting. You will receive another email when the full-text index is ready.</p>"
+                f"<p><a href='https://pstbrowser.com/process-flow' style='background:#2563eb;color:#fff;"
                 f"padding:10px 22px;border-radius:8px;text-decoration:none;font-weight:600;"
-                f"display:inline-block'>Search your emails</a></p>",
+                f"display:inline-block'>View processing status</a></p>",
             )
     except Exception as e:
         q.put(f"ERROR: {e}")
@@ -1620,12 +1624,14 @@ def _build_index_progress(col, q: queue.Queue, user_email: str = ""):
         emit("Search index ready!", 100, ok=True)
         _send_notification_email(
             user_email,
-            "✅ Search index ready — pstbrowser.com",
+            "✅ Indexing complete — pstbrowser.com",
             "Your search index has finished building. Full-text search is now available at https://pstbrowser.com",
-            "<p>Your search index has finished building.</p>"
+            "<p>Your search index has finished building. You can now search across all your emails by keyword, sender, date, and more.</p>"
+            "<p>If you have PDF attachments, OCR processing may still be running to make document content searchable.</p>"
             "<p><a href='https://pstbrowser.com' style='background:#2563eb;color:#fff;"
             "padding:10px 22px;border-radius:8px;text-decoration:none;font-weight:600;"
-            "display:inline-block'>Search your emails</a></p>",
+            "display:inline-block'>Search your emails</a></p>"
+            "<p style='margin-top:8px'><a href='https://pstbrowser.com/process-flow' style='color:#2563eb;font-size:.9rem;'>View full processing status</a></p>",
         )
 
     q.put(None)   # sentinel
@@ -5397,7 +5403,7 @@ def ocr_status():
     return jsonify({"pdfs": results, "summary": summary})
 
 
-def _run_ocr_job(job_id: str, filenames: list, pdf_dir: str, pdf_text_dir: str, q: queue.Queue):
+def _run_ocr_job(job_id: str, filenames: list, pdf_dir: str, pdf_text_dir: str, q: queue.Queue, user_email: str = ""):
     """
     Background thread: run OCR on the listed PDFs, update the text cache.
     Emits JSON progress events: {msg, pct, ok, done}.
@@ -5481,6 +5487,16 @@ def _run_ocr_job(job_id: str, filenames: list, pdf_dir: str, pdf_text_dir: str, 
 
     emit(f"OCR complete — {total} file(s) processed.", 100, done=True)
     jobs[job_id]["status"] = "done"
+    _send_notification_email(
+        user_email,
+        "✅ Attachment OCR complete — pstbrowser.com",
+        f"OCR processing is complete for {total} PDF(s). You can now search within your documents at https://pstbrowser.com",
+        f"<p>OCR processing is complete for <strong>{total} PDF(s)</strong>.</p>"
+        f"<p>You can now search inside your PDF attachments — not just filenames, but the full content of each document.</p>"
+        f"<p><a href='https://pstbrowser.com/attachments' style='background:#2563eb;color:#fff;"
+        f"padding:10px 22px;border-radius:8px;text-decoration:none;font-weight:600;"
+        f"display:inline-block'>Browse and search attachments</a></p>",
+    )
     q.put(None)
 
 
@@ -5502,8 +5518,9 @@ def ocr_run():
     _pdf_dir     = get_pdf_dir()
     _pdf_txt_dir = get_pdf_text_dir()
 
-    job_id = str(uuid.uuid4())
-    q      = queue.Queue()
+    job_id     = str(uuid.uuid4())
+    q          = queue.Queue()
+    user_email = current_user.email if current_user.is_authenticated else ""
     jobs[job_id] = {
         "queue":    q,
         "status":   "running",
@@ -5511,7 +5528,7 @@ def ocr_run():
     }
 
     threading.Thread(
-        target=_run_ocr_job, args=(job_id, filenames, _pdf_dir, _pdf_txt_dir, q),
+        target=_run_ocr_job, args=(job_id, filenames, _pdf_dir, _pdf_txt_dir, q, user_email),
         daemon=True,
     ).start()
     return jsonify({"job_id": job_id, "count": len(filenames)})
