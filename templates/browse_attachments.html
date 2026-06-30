@@ -160,11 +160,12 @@ function doSearch() {
   const qLower = q.toLowerCase();
 
   // Run filename search and content search in parallel
-  const filenameSearch = fetch('/attachments/search-names?q=' + encodeURIComponent(q))
-    .then(r => { if (!r.ok) throw new Error('names ' + r.status); return r.json(); })
+  const fetchOpts = { credentials: 'same-origin' };
+  const filenameSearch = fetch('/attachments/search-names?q=' + encodeURIComponent(q), fetchOpts)
+    .then(r => { if (!r.ok) throw new Error('names HTTP ' + r.status); return r.json(); })
     .catch(e => { console.warn('Filename search error:', e); return { results: [], error: e.message }; });
-  const contentSearch = fetch('/search-files?q=' + encodeURIComponent(q) + '&folder=all')
-    .then(r => { if (!r.ok) throw new Error('content ' + r.status); return r.json(); })
+  const contentSearch = fetch('/search-files?q=' + encodeURIComponent(q) + '&folder=all', fetchOpts)
+    .then(r => { if (!r.ok) throw new Error('content HTTP ' + r.status); return r.json(); })
     .catch(e => { console.warn('Content search error:', e); return { results: [], error: e.message }; });
 
   Promise.all([filenameSearch, contentSearch]).then(([nameData, contentData]) => {
