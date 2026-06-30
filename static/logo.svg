@@ -1,0 +1,70 @@
+<svg width="680" height="320" viewBox="0 0 680 320" role="img" xmlns="http://www.w3.org/2000/svg">
+  <title>PST Browser logo</title>
+  <desc>Logo for pstbrowser.com featuring an envelope with a paperclip and magnifying glass, representing email archive browsing with attachments</desc>
+
+  <style>
+    @media (prefers-color-scheme: dark) {
+      .env-bg    { fill: #1e293b; }
+      .env-s     { stroke: #cbd5e1; }
+      .acc       { fill: #60a5fa; stroke: #60a5fa; }
+      .acc-s     { stroke: #60a5fa; }
+      .glass-bg  { fill: #1e293b; }
+      .handle    { stroke: #3b82f6; }
+      .tp        { fill: #f1f5f9; }
+      .ts        { fill: #94a3b8; }
+      .clip-s    { stroke: #f59e0b; }
+      .doc-bg    { fill: #1e2d3d; }
+      .doc-s     { stroke: #60a5fa; }
+    }
+    @media (prefers-color-scheme: light) {
+      .env-bg    { fill: #ffffff; }
+      .env-s     { stroke: #1e3a5f; }
+      .acc       { fill: #2563eb; stroke: #2563eb; }
+      .acc-s     { stroke: #2563eb; }
+      .glass-bg  { fill: #eff6ff; }
+      .handle    { stroke: #1d4ed8; }
+      .tp        { fill: #0f172a; }
+      .ts        { fill: #64748b; }
+      .clip-s    { stroke: #d97706; }
+      .doc-bg    { fill: #f0f7ff; }
+      .doc-s     { stroke: #2563eb; }
+    }
+  </style>
+
+  <!-- Envelope body -->
+  <rect x="52" y="88" width="196" height="144" rx="10" class="env-bg env-s" stroke-width="3"/>
+  <!-- Envelope flap V -->
+  <polyline points="52,88 150,163 248,88" fill="none" class="env-s" stroke-width="3" stroke-linejoin="round"/>
+  <!-- bottom fold lines -->
+  <line x1="52"  y1="232" x2="118" y2="170" class="env-s" stroke-width="1.5" opacity="0.3"/>
+  <line x1="248" y1="232" x2="182" y2="170" class="env-s" stroke-width="1.5" opacity="0.3"/>
+
+  <!-- Attachment doc peeking from behind envelope -->
+  <rect x="170" y="148" width="64" height="80" rx="6" class="doc-bg doc-s" stroke-width="2.5"/>
+  <polyline points="214,148 234,148 234,168" fill="none" class="doc-s" stroke-width="2"/>
+  <polyline points="214,148 214,168 234,168" fill="none" class="doc-s" stroke-width="2" opacity="0.4"/>
+  <line x1="180" y1="182" x2="224" y2="182" class="doc-s" stroke-width="1.8" stroke-linecap="round" opacity="0.6"/>
+  <line x1="180" y1="193" x2="224" y2="193" class="doc-s" stroke-width="1.8" stroke-linecap="round" opacity="0.6"/>
+  <line x1="180" y1="204" x2="210" y2="204" class="doc-s" stroke-width="1.8" stroke-linecap="round" opacity="0.6"/>
+
+  <!-- Paperclip (amber accent) -->
+  <g fill="none" class="clip-s" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M148,108 C148,92 170,92 170,108 L170,200 C170,224 128,224 128,200 L128,116"/>
+    <path d="M148,120 C148,110 160,110 160,120 L160,198 C160,212 138,212 138,198 L138,116 C138,96 158,96 158,114"/>
+  </g>
+
+  <!-- Magnifying glass -->
+  <circle cx="236" cy="205" r="40" class="glass-bg acc-s" stroke-width="4"/>
+  <circle cx="236" cy="205" r="29" fill="none" class="acc-s" stroke-width="1.2" opacity="0.25"/>
+  <line x1="222" y1="196" x2="250" y2="196" class="acc-s" stroke-width="2.5" stroke-linecap="round" opacity="0.6"/>
+  <line x1="222" y1="206" x2="250" y2="206" class="acc-s" stroke-width="2.5" stroke-linecap="round" opacity="0.6"/>
+  <line x1="222" y1="216" x2="242" y2="216" class="acc-s" stroke-width="2.5" stroke-linecap="round" opacity="0.6"/>
+  <line x1="265" y1="234" x2="289" y2="258" class="handle" stroke-width="9" stroke-linecap="round"/>
+
+  <!-- Wordmark -->
+  <text x="330" y="172" font-family="system-ui,-apple-system,sans-serif" font-weight="700" font-size="52" letter-spacing="-1">
+    <tspan fill="#2563eb">pst</tspan><tspan class="tp">browser</tspan>
+  </text>
+  <text x="333" y="206" font-family="system-ui,-apple-system,sans-serif" font-weight="400" font-size="17" letter-spacing="0.4" class="ts">pstbrowser.com</text>
+  <text x="333" y="234" font-family="system-ui,-apple-system,sans-serif" font-weight="400" font-size="13" letter-spacing="0.2" class="ts">Search emails &amp; attachments in PST archives</text>
+</svg>

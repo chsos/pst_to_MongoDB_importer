@@ -1,0 +1,51 @@
+<svg width="200" height="200" viewBox="0 0 200 200" role="img" xmlns="http://www.w3.org/2000/svg">
+  <title>PST Browser</title>
+  <desc>Icon mark: envelope with paperclip and magnifying glass</desc>
+
+  <style>
+    @media (prefers-color-scheme: dark) {
+      .env-bg  { fill: #1e293b; }
+      .env-s   { stroke: #cbd5e1; }
+      .acc-s   { stroke: #60a5fa; }
+      .glass-bg{ fill: #1e293b; }
+      .handle  { stroke: #3b82f6; }
+      .clip-s  { stroke: #f59e0b; }
+      .doc-bg  { fill: #1e2d3d; }
+      .doc-s   { stroke: #60a5fa; }
+    }
+    @media (prefers-color-scheme: light) {
+      .env-bg  { fill: #ffffff; }
+      .env-s   { stroke: #1e3a5f; }
+      .acc-s   { stroke: #2563eb; }
+      .glass-bg{ fill: #eff6ff; }
+      .handle  { stroke: #1d4ed8; }
+      .clip-s  { stroke: #d97706; }
+      .doc-bg  { fill: #f0f7ff; }
+      .doc-s   { stroke: #2563eb; }
+    }
+  </style>
+
+  <rect x="18" y="38" width="130" height="96" rx="7" class="env-bg env-s" stroke-width="2.5"/>
+  <polyline points="18,38 83,85 148,38" fill="none" class="env-s" stroke-width="2.5" stroke-linejoin="round"/>
+  <line x1="18"  y1="134" x2="55" y2="100" class="env-s" stroke-width="1.2" opacity="0.3"/>
+  <line x1="148" y1="134" x2="111" y2="100" class="env-s" stroke-width="1.2" opacity="0.3"/>
+
+  <rect x="108" y="88" width="42" height="52" rx="4" class="doc-bg doc-s" stroke-width="2"/>
+  <polyline points="132,88 150,88 150,104" fill="none" class="doc-s" stroke-width="1.8"/>
+  <polyline points="132,88 132,104 150,104" fill="none" class="doc-s" stroke-width="1.8" opacity="0.35"/>
+  <line x1="114" y1="115" x2="144" y2="115" class="doc-s" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
+  <line x1="114" y1="123" x2="144" y2="123" class="doc-s" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
+  <line x1="114" y1="131" x2="134" y2="131" class="doc-s" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
+
+  <g fill="none" class="clip-s" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M80,50 C80,39 95,39 95,50 L95,115 C95,131 68,131 68,115 L68,57"/>
+    <path d="M80,60 C80,52 90,52 90,60 L90,113 C90,124 73,124 73,113 L73,57 C73,42 88,42 88,57"/>
+  </g>
+
+  <circle cx="152" cy="143" r="30" class="glass-bg acc-s" stroke-width="3.5"/>
+  <circle cx="152" cy="143" r="21" fill="none" class="acc-s" stroke-width="1" opacity="0.25"/>
+  <line x1="141" y1="136" x2="163" y2="136" class="acc-s" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+  <line x1="141" y1="144" x2="163" y2="144" class="acc-s" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+  <line x1="141" y1="152" x2="157" y2="152" class="acc-s" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+  <line x1="174" y1="165" x2="191" y2="182" class="handle" stroke-width="7" stroke-linecap="round"/>
+</svg>
