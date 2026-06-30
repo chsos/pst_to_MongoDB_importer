@@ -27,3 +27,29 @@ logs/
 # OS
 .DS_Store
 Thumbs.db
+
+# Secrets
+.env
+
+# Backup files
+*.bak
+*.bak.*
+
+# Diagnostic / one-off scripts (not part of the app)
+diag_*.py
+check_*.py
+find_*.py
+show_*.py
+test_*.py
+verify_*.py
+reset_*.py
+backfill_*.py
+export_*.py
+ocr_pdfs.py
+main.py
+
+# Script output logs
+*_out.txt
+*_err.txt
+flask_out.txt
+flask_err.txt
