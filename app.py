@@ -1105,6 +1105,26 @@ def browse_attachments():
                            sort=sort, order=order)
 
 
+@app.route("/attachments/search-names")
+def search_attachment_names():
+    """Return files whose names contain the query string."""
+    q = request.args.get("q", "").strip().lower()
+    if not q:
+        return jsonify({"results": []})
+    attach_dir = get_attach_dir()
+    results = []
+    for folder_name in ["pdf", "Word", "Excel", "PowerPoint", "Images", "Videos", "Text", "Other"]:
+        folder_path = os.path.join(attach_dir, folder_name)
+        if not os.path.isdir(folder_path):
+            continue
+        for fname in os.listdir(folder_path):
+            if q in fname.lower() and os.path.isfile(os.path.join(folder_path, fname)):
+                results.append({"folder": folder_name, "filename": fname})
+                if len(results) >= 200:
+                    break
+    return jsonify({"results": results})
+
+
 @app.route("/attachments/download")
 def download_attachment_file():
     folder   = request.args.get("folder", "")
