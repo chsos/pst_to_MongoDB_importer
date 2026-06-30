@@ -1042,6 +1042,8 @@ def browse_attachments():
     folder     = request.args.get("folder", "")
     q          = request.args.get("q", "").strip().lower()
     page       = max(1, int(request.args.get("page", 1)))
+    sort       = request.args.get("sort", "name")
+    order      = request.args.get("order", "asc")
     per_page   = 50
 
     # Build folder list with counts
@@ -1066,7 +1068,7 @@ def browse_attachments():
         folder_path = os.path.join(attach_dir, search_folder)
         if not os.path.isdir(folder_path):
             continue
-        for fname in sorted(os.listdir(folder_path)):
+        for fname in os.listdir(folder_path):
             fpath = os.path.join(folder_path, fname)
             if not os.path.isfile(fpath):
                 continue
@@ -1079,6 +1081,10 @@ def browse_attachments():
                 "size":     stat.st_size,
                 "modified": datetime.datetime.fromtimestamp(stat.st_mtime),
             })
+
+    # Sort
+    sort_key = {"name": "name", "size": "size", "modified": "modified", "type": "folder"}.get(sort, "name")
+    files.sort(key=lambda f: f[sort_key], reverse=(order == "desc"))
 
     total = len(files)
     files = files[(page - 1) * per_page: page * per_page]
@@ -1095,7 +1101,8 @@ def browse_attachments():
                            files=files, total=total,
                            page=page, pages=pages, per_page=per_page,
                            q=q, fmt_size=fmt_size,
-                           icons=_ATTACH_ICONS)
+                           icons=_ATTACH_ICONS,
+                           sort=sort, order=order)
 
 
 @app.route("/attachments/download")
