@@ -1722,6 +1722,43 @@
       </div>
     </div>
 
+    <!-- ── 5. Export Attachment Folders as ZIP ── -->
+    <div class="card shadow-sm mb-4">
+      <div class="card-header fw-semibold">
+        <i class="bi bi-file-zip me-2"></i>Export all Attachments
+        <span class="text-muted fw-normal small ms-2">download the actual files as a ZIP</span>
+      </div>
+      <div class="card-body">
+
+        <p class="text-muted small mb-3">
+          Select the folders to include, estimate the size, then download a ZIP archive.
+        </p>
+
+        <!-- Folder checkboxes -->
+        <div id="exd-folder-checks" class="mb-3">
+          <div class="text-muted small"><span class="spinner-border spinner-border-sm me-1"></span>Loading folders…</div>
+        </div>
+
+        <!-- Select all / none links -->
+        <div class="mb-3">
+          <a href="#" class="small me-3" onclick="exdSelectAll(true);  return false;">Select all</a>
+          <a href="#" class="small text-muted" onclick="exdSelectAll(false); return false;">Deselect all</a>
+        </div>
+
+        <!-- Actions row -->
+        <div class="d-flex align-items-center gap-3 flex-wrap">
+          <button class="btn btn-outline-secondary btn-sm" onclick="exdCalcSize()">
+            <i class="bi bi-calculator me-1"></i>Estimate size
+          </button>
+          <button class="btn btn-success" onclick="exdDownloadZip()">
+            <i class="bi bi-download me-1"></i>Download ZIP
+          </button>
+          <span id="exd-info" class="small text-muted"></span>
+        </div>
+
+      </div>
+    </div>
+
   </div><!-- /tab-export -->
 
   <!-- ===== IMPORT TAB ===== -->
@@ -5580,8 +5617,65 @@ async function initExportTab_data() {
         sel.appendChild(opt);
       });
     } catch {}
+    // Populate "Export all Attachments" folder checkboxes
+    const box = document.getElementById('exd-folder-checks');
+    try {
+      const r2 = await fetch('/attach-folders');
+      const folders2 = await r2.json();
+      box.innerHTML = '';
+      folders2.forEach(f => {
+        const id  = 'exd-cb-' + f.name;
+        const div = document.createElement('div');
+        div.className = 'form-check';
+        div.innerHTML = `
+          <input class="form-check-input exd-folder-cb" type="checkbox"
+                 id="${esc(id)}" value="${esc(f.name)}" checked>
+          <label class="form-check-label" for="${esc(id)}">
+            <strong>${esc(f.name)}</strong>
+            <span class="text-muted small ms-1">${f.count.toLocaleString()} files</span>
+          </label>`;
+        box.appendChild(div);
+      });
+    } catch {
+      box.innerHTML = '<span class="text-danger small">Error loading folders.</span>';
+    }
   }
   exUpdateCount();
+}
+
+function exdSelectAll(checked) {
+  document.querySelectorAll('.exd-folder-cb').forEach(cb => cb.checked = checked);
+  document.getElementById('exd-info').textContent = '';
+}
+
+function _exdGetSelectedFolders() {
+  return [...document.querySelectorAll('.exd-folder-cb:checked')].map(cb => cb.value);
+}
+
+async function exdCalcSize() {
+  const folders = _exdGetSelectedFolders();
+  const info    = document.getElementById('exd-info');
+  if (!folders.length) { info.textContent = 'No folders selected.'; return; }
+  info.textContent = 'Calculating…';
+  try {
+    const params = new URLSearchParams(folders.map(f => ['folder', f]));
+    const r = await fetch('/export-info?' + params);
+    const d = await r.json();
+    info.textContent =
+      `${d.files.toLocaleString()} files · ~${d.size_str} uncompressed`;
+  } catch {
+    info.textContent = 'Error estimating size.';
+  }
+}
+
+function exdDownloadZip() {
+  const folders = _exdGetSelectedFolders();
+  const info    = document.getElementById('exd-info');
+  if (!folders.length) { info.textContent = 'No folders selected.'; return; }
+  info.textContent = 'Preparing download…';
+  const params = new URLSearchParams(folders.map(f => ['folder', f]));
+  window.location = '/export-zip?' + params;
+  setTimeout(() => { info.textContent = ''; }, 3000);
 }
 
 // Debounced record-count refresh
