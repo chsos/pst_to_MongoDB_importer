@@ -721,8 +721,31 @@ def admin_suggestions():
     if not (current_user.is_authenticated and current_user.email.lower() in {e.lower() for e in ADMIN_EMAILS}):
         return redirect(url_for("login_page"))
     docs = list(_get_client()["pst_emails_admin"]["suggestions"]
-                .find({}, {"_id": 0}).sort("submitted_at", -1))
+                .find({}).sort("submitted_at", -1))
+    # convert ObjectId to string for template use
+    for d in docs:
+        d["_id"] = str(d["_id"])
     return render_template("admin_suggestions.html", suggestions=docs)
+
+
+@app.route("/admin/suggestions/<sid>/status", methods=["POST"])
+def admin_suggestion_status(sid):
+    if not (current_user.is_authenticated and current_user.email.lower() in {e.lower() for e in ADMIN_EMAILS}):
+        return jsonify({"error": "forbidden"}), 403
+    from bson import ObjectId
+    status = request.json.get("status", "new")
+    _get_client()["pst_emails_admin"]["suggestions"].update_one(
+        {"_id": ObjectId(sid)}, {"$set": {"status": status}})
+    return jsonify({"ok": True})
+
+
+@app.route("/admin/suggestions/<sid>/delete", methods=["POST"])
+def admin_suggestion_delete(sid):
+    if not (current_user.is_authenticated and current_user.email.lower() in {e.lower() for e in ADMIN_EMAILS}):
+        return jsonify({"error": "forbidden"}), 403
+    from bson import ObjectId
+    _get_client()["pst_emails_admin"]["suggestions"].delete_one({"_id": ObjectId(sid)})
+    return jsonify({"ok": True})
 
 
 @app.route("/auth/login")

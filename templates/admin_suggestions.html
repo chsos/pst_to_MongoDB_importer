@@ -17,6 +17,10 @@
     .badge-perf     { background:#d1fae5; color:#065f46; }
     .badge-other    { background:#f3f4f6; color:#374151; }
     .suggestion-body { white-space: pre-wrap; font-size: .88rem; color: #374151; }
+    .card.status-done { opacity: .55; }
+    .status-btn.active-new      { background:#dbeafe; color:#1e40af; border-color:#93c5fd; }
+    .status-btn.active-reviewed { background:#fef9c3; color:#854d0e; border-color:#fde047; }
+    .status-btn.active-done     { background:#d1fae5; color:#065f46; border-color:#6ee7b7; }
   </style>
 </head>
 <body>
@@ -33,13 +37,19 @@
 </nav>
 
 <div class="container-fluid px-4 pb-5">
-  <div class="d-flex align-items-center mb-4 gap-3">
+  <div class="d-flex align-items-center mb-4 gap-3 flex-wrap">
     <h4 class="fw-bold mb-0"><i class="bi bi-lightbulb me-2 text-warning"></i>User Suggestions</h4>
-    <span class="text-muted small">{{ suggestions|length }} total</span>
+    <span class="text-muted small" id="total-label">{{ suggestions|length }} total</span>
+    <div class="ms-auto d-flex gap-2 flex-wrap">
+      <button class="btn btn-sm btn-outline-secondary active" onclick="filterStatus('all', this)">All</button>
+      <button class="btn btn-sm btn-outline-primary" onclick="filterStatus('new', this)">New</button>
+      <button class="btn btn-sm btn-outline-warning" onclick="filterStatus('reviewed', this)">Reviewed</button>
+      <button class="btn btn-sm btn-outline-success" onclick="filterStatus('done', this)">Done</button>
+    </div>
   </div>
 
   {% if suggestions %}
-  <div class="row g-3">
+  <div class="row g-3" id="cards-container">
     {% for s in suggestions %}
     {% set cat = s.get('category','Other') %}
     {% if 'Feature' in cat %}{% set badge = 'badge-feature' %}
@@ -47,8 +57,9 @@
     {% elif 'UI' in cat %}{% set badge = 'badge-ui' %}
     {% elif 'Perf' in cat %}{% set badge = 'badge-perf' %}
     {% else %}{% set badge = 'badge-other' %}{% endif %}
-    <div class="col-12 col-lg-6">
-      <div class="card border-0 shadow-sm h-100">
+    {% set st = s.get('status', 'new') %}
+    <div class="col-12 col-lg-6 suggestion-card" data-id="{{ s['_id'] }}" data-status="{{ st }}">
+      <div class="card border-0 shadow-sm h-100 {{ 'status-done' if st == 'done' else '' }}">
         <div class="card-body">
           <div class="d-flex align-items-start justify-content-between mb-2 gap-2">
             <div>
@@ -57,9 +68,23 @@
             </div>
             <span class="badge {{ badge }} text-nowrap">{{ cat }}</span>
           </div>
-          <p class="suggestion-body mb-2">{{ s.get('body','') }}</p>
-          <div class="text-muted" style="font-size:.75rem;">
-            {{ s.get('submitted_at').strftime('%Y-%m-%d %H:%M') if s.get('submitted_at') else '' }}
+          <p class="suggestion-body mb-3">{{ s.get('body','') }}</p>
+          <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <div class="text-muted" style="font-size:.75rem;">
+              {{ s.get('submitted_at').strftime('%Y-%m-%d %H:%M') if s.get('submitted_at') else '' }}
+            </div>
+            <div class="d-flex gap-1 align-items-center">
+              <button class="btn btn-sm btn-outline-primary status-btn px-2 py-1 {{ 'active-new' if st == 'new' else '' }}"
+                      style="font-size:.72rem;" onclick="setStatus(this, 'new')">New</button>
+              <button class="btn btn-sm btn-outline-warning status-btn px-2 py-1 {{ 'active-reviewed' if st == 'reviewed' else '' }}"
+                      style="font-size:.72rem;" onclick="setStatus(this, 'reviewed')">Reviewed</button>
+              <button class="btn btn-sm btn-outline-success status-btn px-2 py-1 {{ 'active-done' if st == 'done' else '' }}"
+                      style="font-size:.72rem;" onclick="setStatus(this, 'done')">Done</button>
+              <button class="btn btn-sm btn-outline-danger px-2 py-1 ms-2"
+                      style="font-size:.72rem;" onclick="deleteSuggestion(this)">
+                <i class="bi bi-trash3"></i>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -75,5 +100,43 @@
 
 <footer class="text-center text-muted py-4 mt-4" style="font-size:.8rem;"><a href="https://www.computerhelpsos.com" target="_blank" rel="noopener" class="text-muted">ComputerHelpSOS LLC</a> &copy; Copyright All Rights Reserved, 2026</footer>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+function cardOf(el) { return el.closest('.suggestion-card'); }
+
+async function setStatus(btn, status) {
+  const card = cardOf(btn);
+  const id   = card.dataset.id;
+  const r    = await fetch(`/admin/suggestions/${id}/status`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({status})
+  });
+  if (!r.ok) return;
+  card.dataset.status = status;
+  card.querySelectorAll('.status-btn').forEach(b => {
+    b.classList.remove('active-new','active-reviewed','active-done');
+  });
+  btn.classList.add(`active-${status}`);
+  card.querySelector('.card').classList.toggle('status-done', status === 'done');
+}
+
+async function deleteSuggestion(btn) {
+  if (!confirm('Delete this suggestion?')) return;
+  const card = cardOf(btn);
+  const id   = card.dataset.id;
+  const r    = await fetch(`/admin/suggestions/${id}/delete`, {method:'POST'});
+  if (!r.ok) return;
+  card.remove();
+  const n = document.querySelectorAll('.suggestion-card').length;
+  document.getElementById('total-label').textContent = n + ' total';
+}
+
+function filterStatus(status, btn) {
+  document.querySelectorAll('.suggestion-card').forEach(c => {
+    c.style.display = (status === 'all' || c.dataset.status === status) ? '' : 'none';
+  });
+  document.querySelectorAll('[onclick^="filterStatus"]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+</script>
 </body>
 </html>
