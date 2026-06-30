@@ -73,7 +73,11 @@
 <div class="container px-3 pb-5">
   <div class="flow-card">
     <h4 class="fw-bold mb-1"><i class="bi bi-arrow-repeat me-2 text-primary"></i>PST Processing Status</h4>
-    <p class="text-muted small mb-4">This page updates automatically. Large PST files (50 GB+) can take up to 24 hours to fully process.</p>
+    <p class="text-muted small mb-3">This page updates automatically. Large PST files (50 GB+) can take up to 24 hours to fully process.</p>
+    <div class="p-2 rounded small mb-4" style="background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;">
+      <i class="bi bi-shield-check me-1"></i>
+      Files up to <strong>4 GB</strong> are virus scanned before import. Files larger than 4 GB are imported without scanning.
+    </div>
 
     <div id="overall-status" class="overall-status overall-pending">
       <span class="spinner-border spinner-border-sm me-2"></span>Loading…
