@@ -2991,7 +2991,10 @@ function _renderEpBody(doc) {
         td, th { border: 1px solid #e5e7eb; padding: 4px 8px; }
         a  { color: #2563eb; }
       </style>
-    </head><body>${doc.body_html}</body></html>`;
+    </head><body>${doc.body_html}
+
+<footer class="text-center text-muted py-4 mt-4" style="font-size:.8rem;">ComputerHelpSOS LLC &copy; Copyright All Rights Reserved, 2026</footer>
+</body></html>`;
     iframe.onload = function () {
       try {
         this.style.height = (this.contentDocument.documentElement.scrollHeight + 24) + 'px';
@@ -6235,5 +6238,8 @@ document.getElementById('changePwModal').addEventListener('show.bs.modal', () =>
   document.getElementById('changePwAlert').classList.add('d-none');
 });
 </script>
+
+
+<footer class="text-center text-muted py-4 mt-4" style="font-size:.8rem;">ComputerHelpSOS LLC &copy; Copyright All Rights Reserved, 2026</footer>
 </body>
 </html>
