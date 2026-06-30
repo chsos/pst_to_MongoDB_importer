@@ -161,6 +161,10 @@
   </span>
   <div class="d-flex align-items-center gap-2">
     <span id="stats-badge" class="badge bg-secondary">Loading…</span>
+    <a id="ocr-badge" href="/ocr-status" title="PDFs pending OCR — content search may be incomplete"
+       class="badge bg-warning text-dark text-decoration-none d-none">
+      <i class="bi bi-file-earmark-text me-1"></i><span id="ocr-badge-count"></span> PDFs indexing
+    </a>
     <button class="btn btn-sm btn-outline-danger" onclick="confirmClear()">
       <i class="bi bi-trash3 me-1"></i>Clear Database
     </button>
@@ -2143,6 +2147,21 @@ async function loadStats() {
     const r = await fetch('/stats');
     const d = await r.json();
     document.getElementById('stats-badge').textContent = `${d.total.toLocaleString()} records`;
+  } catch {}
+}
+
+async function loadOcrBadge() {
+  try {
+    const r = await fetch('/ocr-pending', { credentials: 'same-origin' });
+    const d = await r.json();
+    const badge = document.getElementById('ocr-badge');
+    if (d.pending > 0) {
+      document.getElementById('ocr-badge-count').textContent = d.pending.toLocaleString();
+      badge.classList.remove('d-none');
+      setTimeout(loadOcrBadge, 30000); // re-check every 30s while pending
+    } else {
+      badge.classList.add('d-none');
+    }
   } catch {}
 }
 
@@ -6288,6 +6307,7 @@ async function loadFoldersChart() {
 // Boot
 // ================================================================
 loadStats();
+loadOcrBadge();
 fetch('/retag',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})
   .finally(() => { loadTypeCounts(); loadRecords(1); });
 

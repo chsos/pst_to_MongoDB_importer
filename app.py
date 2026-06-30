@@ -5344,6 +5344,21 @@ def delete_duplicates():
 SEARCHABLE_CHARS_THRESHOLD = 100   # chars below this → "scanned" (image-based) PDF
 
 
+@app.route("/ocr-pending")
+def ocr_pending():
+    """Return count of PDFs not yet OCR'd — used by navbar badge."""
+    _pdf_dir = get_pdf_dir(); _pdf_txt = get_pdf_text_dir()
+    if not os.path.isdir(_pdf_dir):
+        return jsonify({"pending": 0, "total": 0})
+    pdf_files = [f for f in os.listdir(_pdf_dir) if f.lower().endswith(".pdf")]
+    total = len(pdf_files)
+    pending = sum(
+        1 for f in pdf_files
+        if not os.path.isfile(os.path.join(_pdf_txt, os.path.splitext(f)[0] + ".txt"))
+    )
+    return jsonify({"pending": pending, "total": total})
+
+
 @app.route("/ocr-status")
 def ocr_status():
     """
