@@ -684,6 +684,46 @@ def terms_of_service():
     return render_template("terms.html")
 
 
+@app.route("/suggestions", methods=["GET", "POST"])
+def suggestions():
+    if request.method == "POST":
+        name     = request.form.get("name", "").strip()
+        email    = request.form.get("email", "").strip()
+        category = request.form.get("category", "Other").strip()
+        body     = request.form.get("body", "").strip()
+        if not name or not email or not body:
+            flash("Please fill in all fields.", "warning")
+            return redirect(url_for("suggestions"))
+        doc = {
+            "name": name, "email": email,
+            "category": category, "body": body,
+            "submitted_at": datetime.datetime.utcnow(),
+        }
+        try:
+            _get_client()["pst_emails_admin"]["suggestions"].insert_one(doc)
+        except Exception as e:
+            print(f"[SUGGESTIONS] DB error: {e}", flush=True)
+        # Email notification to admin
+        subject    = f"[PST Browser] New suggestion from {name}"
+        body_plain = f"From: {name} <{email}>\nCategory: {category}\n\n{body}"
+        body_html  = (f"<p><strong>From:</strong> {name} &lt;{email}&gt;<br>"
+                      f"<strong>Category:</strong> {category}</p>"
+                      f"<p style='white-space:pre-wrap'>{body}</p>")
+        _send_notification_email("andy@computerhelpsos.com", subject, body_plain, body_html)
+        flash("Thank you! Your suggestion has been submitted.", "success")
+        return redirect(url_for("suggestions"))
+    return render_template("suggestions.html")
+
+
+@app.route("/admin/suggestions")
+def admin_suggestions():
+    if not (current_user.is_authenticated and current_user.email.lower() in {e.lower() for e in ADMIN_EMAILS}):
+        return redirect(url_for("login_page"))
+    docs = list(_get_client()["pst_emails_admin"]["suggestions"]
+                .find({}, {"_id": 0}).sort("submitted_at", -1))
+    return render_template("admin_suggestions.html", suggestions=docs)
+
+
 @app.route("/auth/login")
 def login_page():
     if current_user.is_authenticated:

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Suggestions — PST Browser</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    body { background: #f4f6f9; }
+    .navbar { background: #1a1f36; }
+    .navbar-brand { font-weight: 700; color: #fff !important; }
+    .suggestion-card {
+      background: #fff; border-radius: 12px;
+      box-shadow: 0 1px 6px rgba(0,0,0,.07);
+      padding: 2.5rem 3rem; max-width: 680px; margin: 2rem auto;
+    }
+    textarea { resize: vertical; min-height: 140px; }
+  </style>
+</head>
+<body>
+
+<nav class="navbar navbar-expand-lg px-3 mb-4">
+  <a class="navbar-brand d-flex align-items-center gap-2 p-0" href="/">
+    <img src="/static/logo-icon.svg" alt="" style="height:36px;width:36px;">
+    <span style="font-weight:700;letter-spacing:-0.5px;"><span style="color:#2563eb;">pst</span>browser</span>
+  </a>
+  <div class="ms-auto">
+    <a href="/" class="btn btn-sm btn-outline-light">← Back</a>
+  </div>
+</nav>
+
+<div class="container px-3 pb-5">
+  <div class="suggestion-card">
+    <h4 class="fw-bold mb-1"><i class="bi bi-lightbulb me-2 text-warning"></i>Share a Suggestion</h4>
+    <p class="text-muted small mb-4">Have an idea to improve PST Browser? We'd love to hear it.</p>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }} alert-dismissible py-2 small mb-3" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <form method="POST" action="/suggestions">
+      <div class="mb-3">
+        <label class="form-label fw-semibold">Your name</label>
+        <input type="text" name="name" class="form-control" value="{{ current_user.email.split('@')[0] if current_user.is_authenticated else '' }}" required>
+      </div>
+      <div class="mb-3">
+        <label class="form-label fw-semibold">Email</label>
+        <input type="email" name="email" class="form-control" value="{{ current_user.email if current_user.is_authenticated else '' }}" required>
+      </div>
+      <div class="mb-3">
+        <label class="form-label fw-semibold">Category</label>
+        <select name="category" class="form-select">
+          <option value="Feature request">Feature request</option>
+          <option value="Bug report">Bug report</option>
+          <option value="UI/UX improvement">UI/UX improvement</option>
+          <option value="Performance">Performance</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+      <div class="mb-4">
+        <label class="form-label fw-semibold">Your suggestion</label>
+        <textarea name="body" class="form-control" placeholder="Describe your idea or feedback…" required></textarea>
+      </div>
+      <button type="submit" class="btn btn-primary px-4">
+        <i class="bi bi-send me-2"></i>Submit suggestion
+      </button>
+    </form>
+  </div>
+</div>
+
+<footer class="text-center text-muted py-4 mt-4" style="font-size:.8rem;"><a href="https://www.computerhelpsos.com" target="_blank" rel="noopener" class="text-muted">ComputerHelpSOS LLC</a> &copy; Copyright All Rights Reserved, 2026</footer>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
