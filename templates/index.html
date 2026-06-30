@@ -6279,6 +6279,16 @@ loadStats();
 fetch('/retag',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})
   .finally(() => { loadTypeCounts(); loadRecords(1); });
 
+// Auto-open tab from URL param (e.g. ?tab=import for new signups)
+(function() {
+  const tab = new URLSearchParams(window.location.search).get('tab');
+  const valid = ['all','dash','files','browse','disc','export','import'];
+  if (tab && valid.includes(tab)) {
+    showTab(tab);
+    history.replaceState(null, '', window.location.pathname);
+  }
+})();
+
 </script>
 
 <!-- Change Password Modal -->

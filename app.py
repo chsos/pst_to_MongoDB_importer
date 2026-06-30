@@ -796,7 +796,7 @@ def register_local():
     users.insert_one(doc)
     login_user(User(doc), remember=True)
     flash(f"Welcome, {name}! Your account has been created.", "success")
-    return redirect(url_for("index"))
+    return redirect(url_for("index") + "?tab=import")
 
 
 @app.route("/auth/change-password", methods=["POST"])
@@ -1000,6 +1000,7 @@ def auth_google_callback():
     users = get_users_col()
     doc   = users.find_one({"_id": email})
     now   = datetime.datetime.utcnow()
+    is_new = doc is None
     if doc:
         users.update_one({"_id": email}, {"$set": {"name": name, "avatar_url": avatar_url, "last_login": now}})
         doc.update({"name": name, "avatar_url": avatar_url})
@@ -1009,7 +1010,8 @@ def auth_google_callback():
         users.insert_one(doc)
 
     login_user(User(doc), remember=True)
-    return redirect(request.args.get("next") or url_for("index"))
+    default = url_for("index") + ("?tab=import" if is_new else "")
+    return redirect(request.args.get("next") or default)
 
 
 # ── Microsoft OAuth ───────────────────────────────────────────────────────────
@@ -1051,6 +1053,7 @@ def auth_microsoft_callback():
     users = get_users_col()
     doc   = users.find_one({"_id": email})
     now   = datetime.datetime.utcnow()
+    is_new = doc is None
     if doc:
         users.update_one({"_id": email}, {"$set": {"name": name, "last_login": now}})
         doc.update({"name": name})
@@ -1060,7 +1063,8 @@ def auth_microsoft_callback():
         users.insert_one(doc)
 
     login_user(User(doc), remember=True)
-    return redirect(request.args.get("next") or url_for("index"))
+    default = url_for("index") + ("?tab=import" if is_new else "")
+    return redirect(request.args.get("next") or default)
 
 
 # ---------------------------------------------------------------------------

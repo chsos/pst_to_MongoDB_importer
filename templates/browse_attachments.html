@@ -53,6 +53,33 @@
     </div>
   </div>
 
+  <!-- Export card -->
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-white fw-semibold py-2">
+      <i class="bi bi-file-zip me-2 text-primary"></i>Export attachments as ZIP
+    </div>
+    <div class="card-body d-flex align-items-center gap-3 flex-wrap py-3">
+      <div>
+        <label class="form-label small fw-semibold mb-1">File type</label>
+        <select id="export-type-select" class="form-select form-select-sm" style="width:200px">
+          <option value="all">All types</option>
+          {% for f in folders %}
+          <option value="{{ f.name }}">{{ f.name }} ({{ f.count }} files)</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="mt-3">
+        <button class="btn btn-sm btn-outline-secondary me-2" onclick="attExportEstimate()">
+          <i class="bi bi-calculator me-1"></i>Estimate size
+        </button>
+        <button class="btn btn-sm btn-success" onclick="attExportDownload()">
+          <i class="bi bi-download me-1"></i>Download ZIP
+        </button>
+        <span id="att-export-info" class="text-muted small ms-3"></span>
+      </div>
+    </div>
+  </div>
+
   <!-- Browse mode: server-rendered file table -->
   <div id="browse-panel">
     <div class="card border-0 shadow-sm">
@@ -111,6 +138,33 @@
     <div class="card border-0 shadow-sm">
       <div class="card-body p-0">
         <div id="search-results"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Export card -->
+  <div class="card border-0 shadow-sm mt-4">
+    <div class="card-header bg-white fw-semibold py-2">
+      <i class="bi bi-file-zip me-2 text-primary"></i>Export attachments as ZIP
+    </div>
+    <div class="card-body d-flex align-items-center gap-3 flex-wrap py-3">
+      <div>
+        <label class="form-label small fw-semibold mb-1">File type</label>
+        <select id="export-type-select" class="form-select form-select-sm" style="width:200px">
+          <option value="all">All types</option>
+          {% for f in folders %}
+          <option value="{{ f.name }}">{{ f.name }} ({{ f.count }} files)</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="mt-3">
+        <button class="btn btn-sm btn-outline-secondary me-2" onclick="attExportEstimate()">
+          <i class="bi bi-calculator me-1"></i>Estimate size
+        </button>
+        <button class="btn btn-sm btn-success" onclick="attExportDownload()">
+          <i class="bi bi-download me-1"></i>Download ZIP
+        </button>
+        <span id="att-export-info" class="text-muted small ms-3"></span>
       </div>
     </div>
   </div>
@@ -210,6 +264,28 @@ function clearSearch() {
 searchBtn.addEventListener('click', doSearch);
 clearBtn.addEventListener('click', clearSearch);
 searchInput.addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
+
+function _attExportParams() {
+  const val = document.getElementById('export-type-select').value;
+  return val === 'all' ? '?folder=all' : '?folder=' + encodeURIComponent(val);
+}
+
+async function attExportEstimate() {
+  const info = document.getElementById('att-export-info');
+  info.textContent = 'Calculating…';
+  try {
+    const r = await fetch('/export-info' + _attExportParams(), { credentials: 'same-origin' });
+    const d = await r.json();
+    info.textContent = d.files.toLocaleString() + ' files · ~' + d.size_str + ' uncompressed';
+  } catch { info.textContent = 'Error estimating size.'; }
+}
+
+function attExportDownload() {
+  const info = document.getElementById('att-export-info');
+  info.textContent = 'Preparing download…';
+  window.location = '/export-zip' + _attExportParams();
+  setTimeout(() => { info.textContent = ''; }, 3000);
+}
 </script>
 
 
