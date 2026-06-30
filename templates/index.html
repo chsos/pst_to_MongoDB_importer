@@ -154,6 +154,14 @@
 </head>
 <body>
 
+<!-- Storage quota warning banner (shown by JS at ≥90%) -->
+<div id="quota-warning" class="d-none alert alert-danger alert-dismissible rounded-0 mb-0 py-2 text-center" role="alert" style="font-size:.88rem;">
+  <i class="bi bi-exclamation-triangle-fill me-2"></i>
+  <strong>Storage almost full:</strong> <span id="quota-warning-text"></span> —
+  <a href="{{ url_for('billing_page') }}" class="alert-link">upgrade your plan</a> to continue uploading.
+  <button type="button" class="btn-close btn-close-sm" data-bs-dismiss="alert"></button>
+</div>
+
 <nav class="navbar navbar-dark px-4 py-2 mb-4">
   <span class="navbar-brand d-flex align-items-center gap-2 p-0">
     <img src="/static/logo-icon.svg" alt="" style="height:36px;width:36px;">
@@ -2778,6 +2786,13 @@ async function loadStorageBar() {
       ? `${(d.storage_gb * 1024).toFixed(0)} MB`
       : `${d.storage_gb.toFixed(1)} GB`;
     label.textContent = `${usedStr} / ${d.quota_gb} GB`;
+    // Show warning banner at 90%+
+    const banner = document.getElementById('quota-warning');
+    if (banner && pct >= 90) {
+      document.getElementById('quota-warning-text').textContent =
+        `${usedStr} of ${d.quota_gb} GB used (${pct}%)`;
+      banner.classList.remove('d-none');
+    }
   } catch { /* not logged in or billing not configured */ }
 }
 loadStorageBar();
