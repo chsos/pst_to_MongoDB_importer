@@ -221,6 +221,7 @@ _PUBLIC_ENDPOINTS = {
     "forgot_password",
     "reset_password", "reset_password_submit",
     "static",
+    "privacy_policy", "terms_of_service",
 }
 
 @app.before_request
@@ -671,6 +672,16 @@ def _verify_recaptcha(token: str, min_score: float = 0.5) -> bool:
         return bool(result.get("success")) and float(result.get("score", 0)) >= min_score
     except Exception:
         return False
+
+
+@app.route("/privacy")
+def privacy_policy():
+    return render_template("privacy.html")
+
+
+@app.route("/terms")
+def terms_of_service():
+    return render_template("terms.html")
 
 
 @app.route("/auth/login")
