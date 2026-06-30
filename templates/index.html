@@ -1534,7 +1534,44 @@
   <!-- ===== DATA EXPORT TAB ===== -->
   <div id="tab-export" style="display:none">
 
-    <!-- ── 1. Export Records (Emails) ── -->
+    <!-- ── 1. Export Attachment Folders as ZIP ── -->
+    <div class="card shadow-sm mb-4">
+      <div class="card-header fw-semibold">
+        <i class="bi bi-file-zip me-2"></i>Export all Attachments
+        <span class="text-muted fw-normal small ms-2">download the actual files as a ZIP</span>
+      </div>
+      <div class="card-body">
+
+        <p class="text-muted small mb-3">
+          Select the folders to include, estimate the size, then download a ZIP archive.
+        </p>
+
+        <!-- Folder checkboxes -->
+        <div id="exd-folder-checks" class="mb-3">
+          <div class="text-muted small"><span class="spinner-border spinner-border-sm me-1"></span>Loading folders…</div>
+        </div>
+
+        <!-- Select all / none links -->
+        <div class="mb-3">
+          <a href="#" class="small me-3" onclick="exdSelectAll(true);  return false;">Select all</a>
+          <a href="#" class="small text-muted" onclick="exdSelectAll(false); return false;">Deselect all</a>
+        </div>
+
+        <!-- Actions row -->
+        <div class="d-flex align-items-center gap-3 flex-wrap">
+          <button class="btn btn-outline-secondary btn-sm" onclick="exdCalcSize()">
+            <i class="bi bi-calculator me-1"></i>Estimate size
+          </button>
+          <button class="btn btn-success" onclick="exdDownloadZip()">
+            <i class="bi bi-download me-1"></i>Download ZIP
+          </button>
+          <span id="exd-info" class="small text-muted"></span>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ── 2. Export Records (Emails) ── -->
     <div class="card shadow-sm mb-4">
       <div class="card-header fw-semibold">
         <i class="bi bi-envelope me-2"></i>Export Records
@@ -1728,42 +1765,6 @@
       </div>
     </div>
 
-    <!-- ── 5. Export Attachment Folders as ZIP ── -->
-    <div class="card shadow-sm mb-4">
-      <div class="card-header fw-semibold">
-        <i class="bi bi-file-zip me-2"></i>Export all Attachments
-        <span class="text-muted fw-normal small ms-2">download the actual files as a ZIP</span>
-      </div>
-      <div class="card-body">
-
-        <p class="text-muted small mb-3">
-          Select the folders to include, estimate the size, then download a ZIP archive.
-        </p>
-
-        <!-- Folder checkboxes -->
-        <div id="exd-folder-checks" class="mb-3">
-          <div class="text-muted small"><span class="spinner-border spinner-border-sm me-1"></span>Loading folders…</div>
-        </div>
-
-        <!-- Select all / none links -->
-        <div class="mb-3">
-          <a href="#" class="small me-3" onclick="exdSelectAll(true);  return false;">Select all</a>
-          <a href="#" class="small text-muted" onclick="exdSelectAll(false); return false;">Deselect all</a>
-        </div>
-
-        <!-- Actions row -->
-        <div class="d-flex align-items-center gap-3 flex-wrap">
-          <button class="btn btn-outline-secondary btn-sm" onclick="exdCalcSize()">
-            <i class="bi bi-calculator me-1"></i>Estimate size
-          </button>
-          <button class="btn btn-success" onclick="exdDownloadZip()">
-            <i class="bi bi-download me-1"></i>Download ZIP
-          </button>
-          <span id="exd-info" class="small text-muted"></span>
-        </div>
-
-      </div>
-    </div>
 
   </div><!-- /tab-export -->
 
