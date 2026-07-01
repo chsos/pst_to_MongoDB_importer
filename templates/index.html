@@ -2752,7 +2752,7 @@ async function setupAtlasIndex() {
       setTimeout(() => fetch('/api/search-mode').then(r=>r.json()).then(d=>_updateSearchModeBadge(d.mode)), 3000);
     } else {
       showToast(d.message, 'warning');
-      if (btn) { btn.disabled = true; btn.title = 'Not available on standard MongoDB'; btn.innerHTML = '<i class="bi bi-lightning-charge me-1"></i>Atlas Search unavailable'; }
+      if (btn) { btn.style.display = 'none'; }
     }
   } catch {
     if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-lightning-charge me-1"></i>Enable Atlas Search'; }
