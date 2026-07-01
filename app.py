@@ -1541,7 +1541,7 @@ def _clamscan(path: str, q: queue.Queue) -> tuple[bool, str]:
             try: os.chmod(path, orig_mode)
             except Exception: pass
 
-    for scanner in ("clamdscan", "clamscan"):
+    for scanner in ("clamscan", "clamdscan"):
         try:
             proc = subprocess.Popen(
                 [scanner, "--no-summary", "--max-filesize=4000M", "--max-scansize=4000M", path],
