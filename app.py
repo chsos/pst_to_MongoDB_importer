@@ -4213,12 +4213,12 @@ def process_status():
     return jsonify({
         "record_count": record_count,
         "steps": [
-            {"id": "import",     "label": "Import data",
-             "detail": f"{record_count:,} records imported" if import_status == "done" else "Importing emails, contacts, and attachments from your PST file",
-             "status": import_status},
             {"id": "virus_scan", "label": "Virus scan",
              "detail": "File scanned and cleared" if virus_status == "done" else "Scanning your PST file for viruses",
              "status": virus_status},
+            {"id": "import",     "label": "Import data",
+             "detail": f"{record_count:,} records imported" if import_status == "done" else "Importing emails, contacts, and attachments from your PST file",
+             "status": import_status},
             {"id": "indexing",   "label": "Indexing",
              "detail": "Full-text index ready" if index_status == "done" else "Building search index across all emails",
              "status": index_status},
