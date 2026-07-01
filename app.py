@@ -3973,7 +3973,7 @@ def save_attachment(file_id):
 
 @app.route("/clear", methods=["POST"])
 def clear_collection():
-    """Drop the entire collection + GridFS, ready for a fresh import."""
+    """Drop the entire collection + GridFS + Attachments folder, ready for a fresh import."""
     db     = get_db()
     col    = db[COLLECTION]
     before = col.count_documents({})
@@ -3990,6 +3990,13 @@ def clear_collection():
     col.create_index("subject")
     col.create_index("message_id")
     col.create_index("item_type")
+
+    # Wipe Attachments folder and recreate it empty
+    attach_dir = get_attach_dir()
+    if os.path.isdir(attach_dir):
+        import shutil
+        shutil.rmtree(attach_dir)
+    os.makedirs(attach_dir, exist_ok=True)
 
     return jsonify({"ok": True, "deleted": before})
 
