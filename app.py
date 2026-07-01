@@ -30,7 +30,7 @@ import io
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
-MONGO_URI    = "mongodb://adminUser:REMOVED-PASSWORD@127.0.0.1:27017/?authSource=admin"
+MONGO_URI    = os.environ.get("MONGO_URI", "mongodb://127.0.0.1:27017/")
 DB_NAME      = "pst_emails"
 ADMIN_EMAILS = {"andy@computerhelpsos.com"}  # quota-exempt accounts
 COLLECTION   = "pst_items"

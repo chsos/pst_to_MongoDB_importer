@@ -42,9 +42,13 @@ fi
 
 # ── MongoDB dump ───────────────────────────────
 echo "[3/3] Dumping MongoDB ..."
-mongodump --quiet --out="$DEST/mongodb_dump" 2>/dev/null && \
-    echo "      Done — $(du -sh "$DEST/mongodb_dump" | cut -f1)" || \
-    echo "      WARNING: mongodump failed (mongodump not installed?)"
+# Auth credentials come from MONGO_URI in the app's .env (if set)
+MONGO_URI=$(grep -E '^MONGO_URI=' "$APP_DIR/.env" 2>/dev/null | cut -d= -f2- || true)
+if mongodump --quiet ${MONGO_URI:+--uri="$MONGO_URI"} --out="$DEST/mongodb_dump"; then
+    echo "      Done — $(du -sh "$DEST/mongodb_dump" | cut -f1)"
+else
+    echo "      WARNING: mongodump failed"
+fi
 
 # ── Rotate old backups ────────────────────────
 echo "Rotating backups older than $KEEP_DAYS days ..."

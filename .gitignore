@@ -30,6 +30,7 @@ Thumbs.db
 
 # Secrets
 .env
+.mcp.json
 
 # Backup files
 *.bak
