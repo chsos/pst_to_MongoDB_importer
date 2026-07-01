@@ -214,6 +214,7 @@ oauth.register(
 # Auth gate  — runs before every request
 # ---------------------------------------------------------------------------
 _PUBLIC_ENDPOINTS = {
+    "landing",
     "login_page", "login_local", "register_page", "register_local",
     "auth_google", "auth_google_callback",
     "auth_microsoft", "auth_microsoft_callback",
@@ -1162,8 +1163,14 @@ def auth_microsoft_callback():
 # Routes
 # ---------------------------------------------------------------------------
 
+@app.route("/landing")
+def landing():
+    return render_template("landing.html")
+
 @app.route("/")
 def index():
+    if not current_user.is_authenticated:
+        return render_template("landing.html")
     return render_template("index.html")
 
 

@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <title>PST Browser — Search Your Outlook Archive</title>
+  <meta name="description" content="Upload your Outlook PST file and instantly search every email, contact, and attachment. Export to CSV, ZIP, or .eml in seconds.">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    body { background: #f8fafc; font-family: 'Segoe UI', system-ui, sans-serif; }
+
+    /* ── Navbar ── */
+    .navbar { background: #1a1f36; }
+
+    /* ── Hero ── */
+    .hero {
+      background: linear-gradient(135deg, #1a1f36 0%, #1e3a5f 60%, #1d4ed8 100%);
+      padding: 80px 0 90px;
+      color: #fff;
+    }
+    .hero h1 { font-size: clamp(2rem, 5vw, 3.2rem); font-weight: 800; line-height: 1.15; }
+    .hero .lead { font-size: 1.15rem; color: #bfdbfe; max-width: 540px; }
+    .hero .badge-pill {
+      background: rgba(255,255,255,.12); color: #bfdbfe;
+      border-radius: 99px; font-size: .8rem; padding: 4px 14px; border: 1px solid rgba(255,255,255,.2);
+      display: inline-block; margin-bottom: 18px;
+    }
+    .hero-cta .btn-primary {
+      background: #2563eb; border-color: #2563eb;
+      padding: 12px 28px; font-size: 1rem; font-weight: 600; border-radius: 8px;
+    }
+    .hero-cta .btn-outline-light {
+      padding: 12px 28px; font-size: 1rem; border-radius: 8px;
+    }
+
+    /* ── Process strip ── */
+    .process-strip { background: #fff; border-bottom: 1px solid #e5e7eb; }
+    .step-pill {
+      display: flex; align-items: center; gap: 10px;
+      font-size: .88rem; font-weight: 500; color: #374151;
+    }
+    .step-num {
+      width: 28px; height: 28px; border-radius: 50%;
+      background: #eff6ff; color: #2563eb; font-weight: 700; font-size: .8rem;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .step-arrow { color: #d1d5db; font-size: 1.2rem; }
+
+    /* ── Features ── */
+    .feature-icon {
+      width: 48px; height: 48px; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.4rem; flex-shrink: 0;
+    }
+    .feature-card { border-radius: 14px; border: 1.5px solid #e5e7eb; background: #fff; height: 100%; }
+    .feature-card:hover { border-color: #2563eb; box-shadow: 0 4px 20px rgba(37,99,235,.1); }
+
+    /* ── Pricing ── */
+    .pricing-card {
+      border-radius: 16px; border: 2px solid #e5e7eb; background: #fff;
+      transition: border-color .2s, box-shadow .2s; height: 100%;
+    }
+    .pricing-card.featured {
+      border-color: #2563eb; box-shadow: 0 8px 32px rgba(37,99,235,.15);
+    }
+    .pricing-card .price { font-size: 2.4rem; font-weight: 800; color: #111827; }
+    .pricing-card .price sup { font-size: 1.1rem; font-weight: 600; vertical-align: super; }
+    .pricing-card .price sub { font-size: .85rem; font-weight: 400; color: #6b7280; }
+    .check-item { font-size: .9rem; color: #374151; padding: 4px 0; }
+    .check-item i { color: #22c55e; }
+
+    /* ── VIP card ── */
+    .vip-card {
+      background: linear-gradient(135deg, #1a1f36, #1e3a5f);
+      border-radius: 16px; color: #fff;
+    }
+
+    /* ── Footer ── */
+    footer { background: #1a1f36; color: #94a3b8; }
+    footer a { color: #94a3b8; text-decoration: none; }
+    footer a:hover { color: #fff; }
+  </style>
+</head>
+<body>
+
+<!-- Navbar -->
+<nav class="navbar navbar-expand-lg px-4 py-2">
+  <a class="navbar-brand d-flex align-items-center gap-2 p-0" href="/">
+    <img src="/static/logo-icon.svg" alt="" style="height:36px;width:36px;">
+    <span style="font-weight:700;letter-spacing:-0.5px;color:#fff;">
+      <span style="color:#2563eb;">pst</span>browser
+    </span>
+  </a>
+  <div class="ms-auto d-flex gap-2">
+    <a href="/auth/login" class="btn btn-sm btn-outline-light">Sign in</a>
+    <a href="/auth/login" class="btn btn-sm btn-primary">Get started free</a>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="container">
+    <div class="row align-items-center g-5">
+      <div class="col-lg-6">
+        <div class="badge-pill"><i class="bi bi-shield-check me-1"></i>Virus scanned · Fully private</div>
+        <h1>Your Outlook archive,<br>finally searchable.</h1>
+        <p class="lead mt-3 mb-4">
+          Upload your PST file and search every email, contact, and attachment instantly.
+          Export what you need as CSV, ZIP, or .eml. Large archives (50 GB+) fully supported.
+        </p>
+        <div class="hero-cta d-flex gap-3 flex-wrap">
+          <a href="/auth/login" class="btn btn-primary btn-lg">
+            <i class="bi bi-rocket-takeoff me-2"></i>Get started free
+          </a>
+          <a href="#features" class="btn btn-outline-light btn-lg">See features</a>
+        </div>
+        <p class="mt-3 small" style="color:#93c5fd;">
+          Free plan includes 1 GB · No credit card required
+        </p>
+      </div>
+      <div class="col-lg-6 d-none d-lg-block text-center">
+        <img src="/static/logo-icon.svg" alt="PST Browser" style="width:200px;opacity:.18;">
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- How it works strip -->
+<section class="process-strip py-4">
+  <div class="container">
+    <div class="d-flex align-items-center justify-content-center gap-3 flex-wrap">
+      <div class="step-pill"><div class="step-num">1</div>Upload your PST file</div>
+      <div class="step-arrow">›</div>
+      <div class="step-pill"><div class="step-num">2</div>Virus scan &amp; import</div>
+      <div class="step-arrow">›</div>
+      <div class="step-pill"><div class="step-num">3</div>Search &amp; browse</div>
+      <div class="step-arrow">›</div>
+      <div class="step-pill"><div class="step-num">4</div>Export what you need</div>
+    </div>
+    <p class="text-center text-muted small mt-2 mb-0">
+      Processing is automatic — you'll receive an email after each stage.
+      Large archives (50 GB+) can take 6–24 hours to fully index.
+    </p>
+  </div>
+</section>
+
+<!-- Features -->
+<section id="features" class="py-6" style="padding: 80px 0;">
+  <div class="container">
+    <div class="text-center mb-5">
+      <h2 class="fw-bold">Everything you need from your PST</h2>
+      <p class="text-muted">No Outlook required. Works on any device.</p>
+    </div>
+    <div class="row g-4">
+
+      <div class="col-md-6 col-lg-4">
+        <div class="feature-card p-4">
+          <div class="feature-icon bg-primary bg-opacity-10 text-primary mb-3">
+            <i class="bi bi-file-zip"></i>
+          </div>
+          <h6 class="fw-bold mb-2">Browse &amp; export attachments</h6>
+          <p class="text-muted small mb-0">
+            Browse every attachment by file type — PDFs, Word docs, images, spreadsheets.
+            Export by type or download everything as a ZIP.
+          </p>
+        </div>
+      </div>
+
+      <div class="col-md-6 col-lg-4">
+        <div class="feature-card p-4">
+          <div class="feature-icon bg-success bg-opacity-10 text-success mb-3">
+            <i class="bi bi-search"></i>
+          </div>
+          <h6 class="fw-bold mb-2">Full-text email search</h6>
+          <p class="text-muted small mb-0">
+            Search across thousands of emails instantly by keyword, sender, date range,
+            subject, or folder. Results appear in milliseconds.
+          </p>
+        </div>
+      </div>
+
+      <div class="col-md-6 col-lg-4">
+        <div class="feature-card p-4">
+          <div class="feature-icon bg-warning bg-opacity-10 text-warning mb-3">
+            <i class="bi bi-file-earmark-text"></i>
+          </div>
+          <h6 class="fw-bold mb-2">Search inside attachments</h6>
+          <p class="text-muted small mb-0">
+            OCR processing makes scanned PDFs fully searchable. Search by filename
+            or content across every file in your archive.
+          </p>
+        </div>
+      </div>
+
+      <div class="col-md-6 col-lg-4">
+        <div class="feature-card p-4">
+          <div class="feature-icon bg-info bg-opacity-10 text-info mb-3">
+            <i class="bi bi-filetype-csv"></i>
+          </div>
+          <h6 class="fw-bold mb-2">Export emails &amp; contacts</h6>
+          <p class="text-muted small mb-0">
+            Export filtered emails as CSV or .eml ZIP. Export contacts as CSV
+            (Outlook-compatible) or vCard for Gmail and Apple Mail.
+          </p>
+        </div>
+      </div>
+
+      <div class="col-md-6 col-lg-4">
+        <div class="feature-card p-4">
+          <div class="feature-icon bg-danger bg-opacity-10 text-danger mb-3">
+            <i class="bi bi-shield-check"></i>
+          </div>
+          <h6 class="fw-bold mb-2">Virus scanned before import</h6>
+          <p class="text-muted small mb-0">
+            Every PST file is scanned with ClamAV before import. Files up to 4 GB
+            are scanned automatically — larger files are imported directly.
+          </p>
+        </div>
+      </div>
+
+      <div class="col-md-6 col-lg-4">
+        <div class="feature-card p-4">
+          <div class="feature-icon bg-secondary bg-opacity-10 text-secondary mb-3">
+            <i class="bi bi-arrow-repeat"></i>
+          </div>
+          <h6 class="fw-bold mb-2">Real-time processing status</h6>
+          <p class="text-muted small mb-0">
+            Track every stage — virus scan, import, indexing, OCR — with a live
+            status page. Get email notifications after each step completes.
+          </p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- Pricing -->
+<section id="pricing" style="padding: 80px 0; background: #f1f5f9;">
+  <div class="container">
+    <div class="text-center mb-5">
+      <h2 class="fw-bold">Simple pricing</h2>
+      <p class="text-muted">Start free. Upgrade when you need more storage.</p>
+    </div>
+    <div class="row g-4 justify-content-center">
+
+      <div class="col-sm-6 col-lg-3">
+        <div class="pricing-card p-4 d-flex flex-column">
+          <div class="fw-bold fs-5 mb-1">Free</div>
+          <div class="price mb-3"><sup>$</sup>0<sub>/mo</sub></div>
+          <ul class="list-unstyled flex-grow-1 mb-4">
+            <li class="check-item"><i class="bi bi-check-circle-fill me-2"></i>1 GB storage</li>
+            <li class="check-item"><i class="bi bi-check-circle-fill me-2"></i>Unlimited emails</li>
+            <li class="check-item"><i class="bi bi-check-circle-fill me-2"></i>Full-text search</li>
+            <li class="check-item"><i class="bi bi-check-circle-fill me-2"></i>Folder browser</li>
+          </ul>
+          <a href="/auth/login" class="btn btn-outline-primary w-100 fw-semibold">Get started</a>
+        </div>
+      </div>
+
+      <div class="col-sm-6 col-lg-3">
+        <div class="pricing-card p-4 d-flex flex-column">
+          <div class="fw-bold fs-5 mb-1">Starter</div>
+          <div class="price mb-3"><sup>$</sup>9<sub>/mo</sub></div>
+          <ul class="list-unstyled flex-grow-1 mb-4">
+            <li class="check-item"><i class="bi bi-check-circle-fill me-2"></i>10 GB storage</li>
+            <li class="check-item"><i class="bi bi-check-circle-fill me-2"></i>Unlimited emails</li>
+            <li class="check-item"><i class="bi bi-check-circle-fill me-2"></i>Full-text search</li>
+            <li class="check-item"><i class="bi bi-check-circle-fill me-2"></i>Bulk export</li>
+          </ul>
+          <a href="/auth/login" class="btn btn-outline-primary w-100 fw-semibold">Get started</a>
+        </div>
+      </div>
+
+      <div class="col-sm-6 col-lg-3">
+        <div class="pricing-card featured p-4 d-flex flex-column">
+          <div class="d-flex align-items-center justify-content-between mb-1">
+            <div class="fw-bold fs-5">Pro</div>
+            <span class="badge bg-primary" style="font-size:.7rem;">Most popular</span>
+          </div>
+          <div class="price mb-3"><sup>$</sup>29<sub>/mo</sub></div>
+          <ul class="list-unstyled flex-grow-1 mb-4">
+            <li class="check-item"><i class="bi bi-check-circle-fill me-2"></i>50 GB storage</li>
+            <li class="check-item"><i class="bi bi-check-circle-fill me-2"></i>Unlimited emails</li>
+            <li class="check-item"><i class="bi bi-check-circle-fill me-2"></i>Fuzzy search</li>
+            <li class="check-item"><i class="bi bi-check-circle-fill me-2"></i>Bulk export</li>
+            <li class="check-item"><i class="bi bi-check-circle-fill me-2"></i>PDF OCR</li>
+          </ul>
+          <a href="/auth/login" class="btn btn-primary w-100 fw-semibold">Get started</a>
+        </div>
+      </div>
+
+      <div class="col-sm-6 col-lg-3">
+        <div class="pricing-card p-4 d-flex flex-column">
+          <div class="fw-bold fs-5 mb-1">Business</div>
+          <div class="price mb-3"><sup>$</sup>79<sub>/mo</sub></div>
+          <ul class="list-unstyled flex-grow-1 mb-4">
+            <li class="check-item"><i class="bi bi-check-circle-fill me-2"></i>200 GB storage</li>
+            <li class="check-item"><i class="bi bi-check-circle-fill me-2"></i>Unlimited emails</li>
+            <li class="check-item"><i class="bi bi-check-circle-fill me-2"></i>Fuzzy search</li>
+            <li class="check-item"><i class="bi bi-check-circle-fill me-2"></i>Bulk export</li>
+            <li class="check-item"><i class="bi bi-check-circle-fill me-2"></i>Priority support</li>
+          </ul>
+          <a href="/auth/login" class="btn btn-outline-primary w-100 fw-semibold">Get started</a>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- VIP card -->
+    <div class="vip-card p-4 mt-4 d-flex align-items-center justify-content-between flex-wrap gap-4">
+      <div>
+        <div class="fw-bold fs-5 mb-1">
+          <i class="bi bi-headset me-2 text-warning"></i>VIP Setup Service
+          <span class="badge bg-warning text-dark ms-2" style="font-size:.72rem;">One-time · $299</span>
+        </div>
+        <p class="mb-0 small" style="color:#bfdbfe;">
+          We remote in via Splashtop, export your PST from Outlook, upload it, and monitor the full import — hands-free for you.
+          Includes 12 months of full access.
+        </p>
+      </div>
+      <a href="/billing" class="btn btn-warning fw-semibold flex-shrink-0">Learn more →</a>
+    </div>
+
+  </div>
+</section>
+
+<!-- CTA -->
+<section style="padding: 80px 0; background: #1a1f36; color: #fff; text-align: center;">
+  <div class="container">
+    <h2 class="fw-bold mb-3">Ready to search your archive?</h2>
+    <p class="mb-4" style="color:#bfdbfe; font-size:1.1rem;">
+      Sign up free. No Outlook, no software install, no credit card required.
+    </p>
+    <a href="/auth/login" class="btn btn-primary btn-lg fw-semibold px-5">
+      <i class="bi bi-rocket-takeoff me-2"></i>Get started free
+    </a>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer class="py-4 text-center" style="font-size:.82rem;">
+  <div class="container">
+    <div class="d-flex justify-content-center gap-4 mb-2 flex-wrap">
+      <a href="/privacy">Privacy Policy</a>
+      <a href="/terms">Terms of Service</a>
+      <a href="/suggestions">Suggestions</a>
+      <a href="https://www.computerhelpsos.com" target="_blank" rel="noopener">ComputerHelpSOS LLC</a>
+    </div>
+    <div style="color:#475569;">&copy; Copyright All Rights Reserved, 2026 · pstbrowser.com</div>
+  </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
