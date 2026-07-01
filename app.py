@@ -1529,6 +1529,18 @@ def _clamscan(path: str, q: queue.Queue) -> tuple[bool, str]:
     Scan a file with ClamAV. Returns (clean, message).
     Emits keep-alive dots into q every 10 seconds so the browser stays connected.
     """
+    # clamdscan runs as the clamav user — make file world-readable so it can access it
+    try:
+        orig_mode = os.stat(path).st_mode
+        os.chmod(path, orig_mode | 0o004)
+    except Exception:
+        orig_mode = None
+
+    def _restore_mode():
+        if orig_mode is not None:
+            try: os.chmod(path, orig_mode)
+            except Exception: pass
+
     for scanner in ("clamdscan", "clamscan"):
         try:
             proc = subprocess.Popen(
@@ -1562,6 +1574,7 @@ def _clamscan(path: str, q: queue.Queue) -> tuple[bool, str]:
             stdout = "".join(output_lines).strip()
             stderr = "".join(stderr_lines).strip()
             combined = (stdout or stderr)[:200]
+            _restore_mode()
 
             if proc.returncode == 0:
                 return True, "Clean"
@@ -1576,8 +1589,10 @@ def _clamscan(path: str, q: queue.Queue) -> tuple[bool, str]:
         except FileNotFoundError:
             continue
         except Exception as e:
+            _restore_mode()
             return True, f"Scan skipped: {e}"
 
+    _restore_mode()
     return True, "ClamAV not installed — scan skipped"
 
 
