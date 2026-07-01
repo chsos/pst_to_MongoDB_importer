@@ -518,6 +518,73 @@ def billing_success():
     return redirect(url_for("billing_page"))
 
 
+STRIPE_PRICE_VIP = os.environ.get("STRIPE_PRICE_VIP", "price_1ToWBkDMYOvxQd9SY9NbBdum")
+
+@app.route("/billing/vip-checkout", methods=["POST"])
+def billing_vip_checkout():
+    if not STRIPE_SECRET_KEY:
+        flash("Stripe is not configured on this server yet.", "warning")
+        return redirect(url_for("billing_page"))
+    _stripe_module.api_key = STRIPE_SECRET_KEY
+
+    first_name = request.form.get("first_name", "").strip()
+    last_name  = request.form.get("last_name",  "").strip()
+    phone      = request.form.get("phone",      "").strip()
+    email      = request.form.get("email",      "").strip()
+    best_time  = request.form.get("best_time",  "").strip()
+
+    # Store the enquiry in MongoDB so it survives whether they complete payment
+    _get_client()["pst_emails_admin"]["vip_orders"].insert_one({
+        "first_name": first_name, "last_name": last_name,
+        "phone": phone, "email": email, "best_time": best_time,
+        "status": "pending_payment",
+        "submitted_at": datetime.datetime.utcnow(),
+    })
+
+    # Send admin notification email
+    subject    = f"[PST Browser] New VIP Setup request — {first_name} {last_name}"
+    body_plain = (f"Name:       {first_name} {last_name}\n"
+                  f"Email:      {email}\n"
+                  f"Phone:      {phone}\n"
+                  f"Best time:  {best_time}\n\n"
+                  f"Payment pending — they are being redirected to Stripe now.")
+    body_html  = (f"<p><strong>Name:</strong> {first_name} {last_name}<br>"
+                  f"<strong>Email:</strong> {email}<br>"
+                  f"<strong>Phone:</strong> {phone}<br>"
+                  f"<strong>Best time to call:</strong> {best_time}</p>"
+                  f"<p><em>Payment pending — redirecting to Stripe now.</em></p>")
+    _send_notification_email("andy@computerhelpsos.com", subject, body_plain, body_html)
+
+    # Create Stripe checkout session (one-time payment)
+    user_doc    = get_users_col().find_one({"_id": current_user.id}) or {
+        "_id": current_user.id, "email": current_user.email, "name": current_user.name
+    }
+    customer_id = _get_or_create_stripe_customer(user_doc)
+
+    session = _stripe_module.checkout.Session.create(
+        customer             = customer_id,
+        payment_method_types = ["card"],
+        line_items           = [{"price": STRIPE_PRICE_VIP, "quantity": 1}],
+        mode                 = "payment",
+        allow_promotion_codes= True,
+        metadata             = {"type": "vip_setup", "email": email, "phone": phone, "best_time": best_time},
+        success_url = url_for("billing_vip_success", _external=True),
+        cancel_url  = url_for("billing_page", _external=True),
+    )
+    return redirect(session.url, code=303)
+
+
+@app.route("/billing/vip-success")
+def billing_vip_success():
+    # Send confirmation email to admin with "payment complete"
+    subject    = "[PST Browser] VIP Setup — payment confirmed"
+    body_plain = "A VIP Setup payment has been completed. Check the vip_orders collection for details."
+    body_html  = "<p>A VIP Setup payment has been completed. Check <strong>vip_orders</strong> in MongoDB for details.</p>"
+    _send_notification_email("andy@computerhelpsos.com", subject, body_plain, body_html)
+    flash("🎉 Payment received! We'll contact you shortly to schedule your remote session.", "success")
+    return redirect(url_for("billing_page"))
+
+
 @app.route("/billing/portal", methods=["POST"])
 def billing_portal():
     if not STRIPE_SECRET_KEY:
