@@ -214,7 +214,7 @@ oauth.register(
 # Auth gate  — runs before every request
 # ---------------------------------------------------------------------------
 _PUBLIC_ENDPOINTS = {
-    "landing",
+    "landing", "index",
     "login_page", "login_local", "register_page", "register_local",
     "auth_google", "auth_google_callback",
     "auth_microsoft", "auth_microsoft_callback",
