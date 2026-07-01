@@ -3405,6 +3405,8 @@ function startIndexBuild() {
       // Refresh counts + records now that the index is ready
       fetch('/retag', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'})
         .finally(() => { loadStats(); loadTypeCounts(); loadRecords(1); });
+      // Auto-start OCR on any pending PDFs
+      if (d.ok) autoStartOcr();
     }
   };
   es.onerror = () => {
@@ -5973,6 +5975,20 @@ function renderOcrTable() {
 async function runOcrOnSelected() {
   const files = [...document.querySelectorAll('.ocr-row-cb:checked')].map(cb => cb.value);
   await runOcrOnFiles(files);
+}
+
+async function autoStartOcr() {
+  try {
+    const r = await fetch('/ocr-pending', { credentials: 'same-origin' });
+    const d = await r.json();
+    if (d.pending > 0) {
+      // Fetch the full list of pending PDFs from ocr-status
+      const r2 = await fetch('/ocr-status', { credentials: 'same-origin' });
+      const d2 = await r2.json();
+      const pending = d2.pdfs.filter(p => p.status === 'not_indexed').map(p => p.filename);
+      if (pending.length) runOcrOnFiles(pending);
+    }
+  } catch (e) { console.warn('autoStartOcr:', e); }
 }
 
 async function runOcrOnFiles(files) {
