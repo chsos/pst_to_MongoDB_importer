@@ -1420,7 +1420,7 @@ def upload_init():
                     "tmp_path": tmp_path, "save_path": save_path})
 
 
-@app.route("/upload/chunk", methods=["PUT"])
+@app.route("/upload/chunk", methods=["PUT", "POST"])
 def upload_chunk():
     """Append a single chunk to the .part file."""
     tmp_path   = request.headers.get("X-Tmp-Path", "")

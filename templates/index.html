@@ -3312,7 +3312,7 @@ async function startUpload(file) {
     let chunkRes, chunkData;
     try {
       chunkRes  = await fetch('/upload/chunk', {
-        method: 'PUT',
+        method: 'POST',
         headers: { 'X-Tmp-Path': tmpPath, 'X-Offset': offset },
         body: chunk
       });
