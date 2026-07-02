@@ -149,15 +149,11 @@ async function load() {
     const r = await fetch('/process-status', { credentials: 'same-origin' });
     const d = await r.json();
     renderSteps(d.steps);
-    const allDone  = d.steps.every(s => s.status === 'done');
-    const anyError = d.steps.some(s => s.status === 'error');
-    if (!allDone && !anyError) {
-      setTimeout(load, 10000);
-    }
   } catch {
     document.getElementById('overall-status').innerHTML =
       '<i class="bi bi-wifi-off me-2"></i>Could not connect — <a href="#" onclick="load();return false;">retry</a>';
   }
+  setTimeout(load, 10000);
 }
 
 load();
