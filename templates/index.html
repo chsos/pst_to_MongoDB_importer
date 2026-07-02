@@ -3266,7 +3266,7 @@ async function startUpload(file) {
   progBar.className = 'progress-bar progress-bar-striped progress-bar-animated bg-info';
 
   // ── Chunked resumable upload ──────────────────────────────────────────────
-  const CHUNK_SIZE = 1 * 1024 * 1024; // 1 MB per chunk
+  const CHUNK_SIZE = 5 * 1024 * 1024; // 5 MB per chunk
 
   // 1. Init (or resume)
   progLabel.textContent = `Preparing upload of ${file.name}…`;
