@@ -4007,11 +4007,17 @@ def clear_collection():
     col.create_index("item_type")
 
     # Wipe Attachments folder and recreate it empty
+    import shutil
     attach_dir = get_attach_dir()
     if os.path.isdir(attach_dir):
-        import shutil
         shutil.rmtree(attach_dir)
     os.makedirs(attach_dir, exist_ok=True)
+
+    # Delete any stale .part upload files so they don't fill the disk
+    upload_dir = get_upload_dir()
+    for f in os.listdir(upload_dir):
+        if f.endswith(".part"):
+            os.remove(os.path.join(upload_dir, f))
 
     return jsonify({"ok": True, "deleted": before})
 
