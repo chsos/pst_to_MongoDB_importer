@@ -5636,7 +5636,7 @@ def _run_ocr_job(job_id: str, filenames: list, pdf_dir: str, pdf_text_dir: str, 
         f"OCR processing is complete for {total} PDF(s). You can now search within your documents at https://pstbrowser.com",
         f"<p>OCR processing is complete for <strong>{total} PDF(s)</strong>.</p>"
         f"<p>You can now search inside your PDF attachments — not just filenames, but the full content of each document.</p>"
-        f"<p><a href='https://pstbrowser.com/attachments#files' style='background:#2563eb;color:#fff;"
+        f"<p><a href='https://pstbrowser.com/?tab=browse' style='background:#2563eb;color:#fff;"
         f"padding:10px 22px;border-radius:8px;text-decoration:none;font-weight:600;"
         f"display:inline-block'>Browse and search attachments</a></p>",
     )
