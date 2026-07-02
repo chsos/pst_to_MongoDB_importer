@@ -3436,6 +3436,13 @@ async function doClear() {
   try {
     const r=await fetch('/clear',{method:'POST'}); const d=await r.json();
     clearModal.hide();
+    // Reset import tab UI
+    document.getElementById('log-box').innerHTML = '';
+    document.getElementById('csv-log-box').innerHTML = '';
+    const _pw = document.getElementById('progress-wrap'); if (_pw) _pw.classList.add('d-none');
+    const _iw = document.getElementById('index-wrap'); if (_iw) _iw.classList.add('d-none');
+    const _ow = document.getElementById('ocr-progress-wrap'); if (_ow) _ow.classList.add('d-none');
+    const _cpw = document.getElementById('csv-progress-wrap'); if (_cpw) _cpw.classList.add('d-none');
     await loadStats(); loadTypeCounts(); loadRecords(1);
     loadStorageBar();
     showToast(`Database cleared — ${d.deleted.toLocaleString()} records deleted.`, 'danger');
