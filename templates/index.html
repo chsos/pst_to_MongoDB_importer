@@ -2142,11 +2142,17 @@ function showTab(name) {
 // ================================================================
 // Stats & type counts
 // ================================================================
+let _lastStatTotal = -1;
 async function loadStats() {
   try {
     const r = await fetch('/stats');
     const d = await r.json();
     document.getElementById('stats-badge').textContent = `${d.total.toLocaleString()} records`;
+    if (_lastStatTotal >= 0 && d.total > _lastStatTotal) {
+      loadRecords(1);
+      loadTypeCounts();
+    }
+    _lastStatTotal = d.total;
   } catch {}
 }
 
@@ -6337,6 +6343,7 @@ async function loadFoldersChart() {
 // Boot
 // ================================================================
 loadStats();
+setInterval(loadStats, 15000);
 loadOcrBadge();
 fetch('/retag',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})
   .finally(() => { loadTypeCounts(); loadRecords(1); });
