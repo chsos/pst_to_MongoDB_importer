@@ -4261,7 +4261,10 @@ def process_status():
     except Exception:
         pass
 
-    if latest_job:
+    if record_count == 0 and (not latest_job or latest_job.get("status") in ("done", "error")):
+        import_status = "pending"
+        virus_status  = "pending"
+    elif latest_job:
         job_status = latest_job.get("status", "running")
         import_status   = "done" if job_status == "done" else ("error" if job_status == "error" else "running")
         virus_status    = "done" if job_status in ("done", "error") else "running"
