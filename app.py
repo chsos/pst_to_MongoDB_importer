@@ -806,6 +806,15 @@ def suggestions():
     return render_template("suggestions.html")
 
 
+@app.route("/admin/accounts")
+def admin_accounts():
+    if not (current_user.is_authenticated and current_user.email.lower() in {e.lower() for e in ADMIN_EMAILS}):
+        return redirect(url_for("login_page"))
+    users = list(get_users_col().find({}, {"_id":0,"email":1,"name":1,"provider":1,"created_at":1,"last_login":1})
+                 .sort("created_at", -1))
+    return render_template("admin_accounts.html", users=users)
+
+
 @app.route("/admin/suggestions")
 def admin_suggestions():
     if not (current_user.is_authenticated and current_user.email.lower() in {e.lower() for e in ADMIN_EMAILS}):
