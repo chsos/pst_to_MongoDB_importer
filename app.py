@@ -689,7 +689,7 @@ def _send_welcome_email(to_addr: str, name: str):
     body_plain = (
         f"Hi {name},\n\n"
         f"Welcome to PSTBrowser! We're glad to have you.\n\n"
-        f"You can start importing your PST file right away at https://pstbrowser.com\n\n"
+        f"You can start importing your PST file right away at https://pstbrowser.com/?tab=import\n\n"
         f"For support please email support@pstbrowser.com or call (571) 200-1551.\n\n"
         f"Thank you,\nPSTBrowser"
     )
@@ -697,7 +697,7 @@ def _send_welcome_email(to_addr: str, name: str):
         f"<p>Hi {name},</p>"
         f"<p>Welcome to PSTBrowser! We're glad to have you.</p>"
         f"<p>You can start importing your PST file right away at "
-        f"<a href='https://pstbrowser.com'>pstbrowser.com</a>.</p>"
+        f"<a href='https://pstbrowser.com/?tab=import'>pstbrowser.com</a>.</p>"
         f"<p>For support please email "
         f"<a href='mailto:support@pstbrowser.com'>support@pstbrowser.com</a> "
         f"or call (571) 200-1551.</p>"
