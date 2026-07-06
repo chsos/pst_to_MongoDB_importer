@@ -23,8 +23,10 @@
             <th class="px-3">Email</th>
             <th>Name</th>
             <th>Provider</th>
+            <th>Plan</th>
             <th>Signed Up</th>
             <th>Last Login</th>
+            <th>Storage</th>
           </tr>
         </thead>
         <tbody>
@@ -41,11 +43,21 @@
                 <span class="badge bg-secondary">Local</span>
               {% endif %}
             </td>
+            <td class="text-muted small text-capitalize">{{ u.plan or 'free' }}</td>
             <td class="text-muted small">{{ u.created_at.strftime('%Y-%m-%d %H:%M') if u.created_at else '—' }}</td>
             <td class="text-muted small">{{ u.last_login.strftime('%Y-%m-%d %H:%M') if u.last_login else '—' }}</td>
+            <td style="min-width:130px">
+              <div class="d-flex align-items-center gap-2">
+                <div class="progress flex-grow-1" style="height:6px">
+                  <div class="progress-bar {% if u.storage_pct >= 90 %}bg-danger{% elif u.storage_pct >= 70 %}bg-warning{% else %}bg-primary{% endif %}"
+                       style="width:{{ u.storage_pct }}%"></div>
+                </div>
+                <span class="text-muted small text-nowrap">{{ u.storage_str }} / {{ u.quota_gb }} GB</span>
+              </div>
+            </td>
           </tr>
           {% else %}
-          <tr><td colspan="5" class="text-center text-muted py-4">No accounts yet.</td></tr>
+          <tr><td colspan="7" class="text-center text-muted py-4">No accounts yet.</td></tr>
           {% endfor %}
         </tbody>
       </table>

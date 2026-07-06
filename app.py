@@ -810,8 +810,38 @@ def suggestions():
 def admin_accounts():
     if not (current_user.is_authenticated and current_user.email.lower() in {e.lower() for e in ADMIN_EMAILS}):
         return redirect(url_for("login_page"))
-    users = list(get_users_col().find({}, {"_id":0,"email":1,"name":1,"provider":1,"created_at":1,"last_login":1})
+    users = list(get_users_col().find({}, {"_id":0,"email":1,"name":1,"provider":1,"created_at":1,"last_login":1,"plan":1})
                  .sort("created_at", -1))
+
+    def _dir_bytes(path: str) -> int:
+        total = 0
+        if os.path.isdir(path):
+            for dp, _, fnames in os.walk(path):
+                for fn in fnames:
+                    try:
+                        total += os.path.getsize(os.path.join(dp, fn))
+                    except Exception:
+                        pass
+        return total
+
+    def _fmt_bytes(b: int) -> str:
+        if b >= 1024 ** 3:
+            return f"{b / 1024 ** 3:.1f} GB"
+        if b >= 1024 ** 2:
+            return f"{b / 1024 ** 2:.0f} MB"
+        if b >= 1024:
+            return f"{b / 1024:.0f} KB"
+        return f"{b} B"
+
+    for u in users:
+        safe = _re_module.sub(r"[^a-z0-9]", "_", u["email"].lower()).strip("_")
+        used = _dir_bytes(os.path.join(UPLOAD_DIR, safe)) + _dir_bytes(os.path.join(ATTACH_DIR, safe))
+        plan_name = u.get("plan", "free")
+        quota_gb  = PLANS.get(plan_name, PLANS["free"])["gb"]
+        u["storage_str"]  = _fmt_bytes(used)
+        u["storage_pct"]  = min(100, int(used / max(quota_gb * 1024 ** 3, 1) * 100))
+        u["quota_gb"]     = quota_gb
+
     return render_template("admin_accounts.html", users=users)
 
 
