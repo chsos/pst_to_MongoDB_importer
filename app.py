@@ -5648,6 +5648,7 @@ def _run_ocr_job(job_id: str, filenames: list, pdf_dir: str, pdf_text_dir: str, 
 
     os.makedirs(pdf_text_dir, exist_ok=True)
 
+    done_count = 0
     for i, fname in enumerate(filenames, 1):
         base_pct   = int((i - 1) / total * 94)
         cache_name = os.path.splitext(fname)[0] + ".txt"
@@ -5659,6 +5660,17 @@ def _run_ocr_job(job_id: str, filenames: list, pdf_dir: str, pdf_text_dir: str, 
 
         if not os.path.isfile(src_path):
             emit(f"  Skipped — file not found: {fname}", base_pct)
+            continue
+
+        # Skip if already cached (another job finished it)
+        if os.path.isfile(cache_path):
+            emit(f"  Skipped — already indexed", base_pct)
+            done_count += 1
+            continue
+
+        # Skip if another worker is already processing this file
+        if os.path.isfile(tmp_path):
+            emit(f"  Skipped — already being processed by another job", base_pct)
             continue
 
         try:
@@ -5679,6 +5691,7 @@ def _run_ocr_job(job_id: str, filenames: list, pdf_dir: str, pdf_text_dir: str, 
                 fh.write(text)
 
             char_count = len(text.strip())
+            done_count += 1
             emit(f"  ✓ {char_count:,} chars extracted", base_pct + 1)
 
         except subprocess.TimeoutExpired:
@@ -5692,7 +5705,7 @@ def _run_ocr_job(job_id: str, filenames: list, pdf_dir: str, pdf_text_dir: str, 
                 except Exception:
                     pass
 
-    emit(f"OCR complete — {total} file(s) processed.", 100, done=True)
+    emit(f"OCR complete — {done_count}/{total} file(s) processed.", 100, done=True)
     jobs[job_id]["status"] = "done"
     _send_notification_email(
         user_email,
