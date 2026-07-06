@@ -5678,12 +5678,15 @@ def _run_ocr_job(job_id: str, filenames: list, pdf_dir: str, pdf_text_dir: str, 
                 [ocrmypdf_cmd, "--skip-text", "--quiet", src_path, tmp_path],
                 capture_output=True, text=True, timeout=300,
             )
-            # ocrmypdf exit code 6 means "already has text, skipped" which is fine
-            if proc.returncode not in (0, 6):
-                stderr_short = (proc.stderr or "").strip()[:120]
-                emit(f"  OCR warning (rc={proc.returncode}): {stderr_short}", base_pct)
+            # rc=6 → already has text (skipped); rc=2 w/ DigitalSignatureError → signed PDF
+            stderr_text = (proc.stderr or "").strip()
+            if proc.returncode == 2 and "DigitalSignatureError" in stderr_text:
+                # Signed PDFs can't be OCR'd — extract existing embedded text instead
+                emit(f"  Signed PDF — extracting embedded text only", base_pct)
+            elif proc.returncode not in (0, 6):
+                emit(f"  OCR warning (rc={proc.returncode}): {stderr_text[:120]}", base_pct)
 
-            # Extract text from the newly OCR'd PDF (or original if OCR was skipped)
+            # Extract text from the newly OCR'd PDF (or original if OCR was skipped/blocked)
             source = tmp_path if os.path.isfile(tmp_path) else src_path
             text   = _extract_file_text(source)
 
