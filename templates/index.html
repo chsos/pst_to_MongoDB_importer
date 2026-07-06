@@ -841,7 +841,7 @@
         <div class="col-6 col-sm-3">
           <div class="card shadow-sm text-center py-3">
             <div id="ocr-cnt-scanned"     class="fs-3 fw-bold text-warning">—</div>
-            <div class="small text-muted">Needs OCR</div>
+            <div class="small text-muted">Image-only (needs OCR)</div>
           </div>
         </div>
         <div class="col-6 col-sm-3">
@@ -859,7 +859,7 @@
           <div class="btn-group btn-group-sm">
             <button class="btn btn-primary"          id="ocr-flt-all"         onclick="ocrFilter('all')">All</button>
             <button class="btn btn-outline-success"  id="ocr-flt-searchable"  onclick="ocrFilter('searchable')">Searchable</button>
-            <button class="btn btn-outline-warning"  id="ocr-flt-scanned"     onclick="ocrFilter('scanned')">Needs OCR</button>
+            <button class="btn btn-outline-warning"  id="ocr-flt-scanned"     onclick="ocrFilter('scanned')">Image-only</button>
             <button class="btn btn-outline-secondary" id="ocr-flt-not_indexed" onclick="ocrFilter('not_indexed')">Not Indexed</button>
           </div>
           <!-- Refresh -->
@@ -5907,7 +5907,7 @@ function renderOcrTable() {
 
   const STATUS_BADGE = {
     searchable:  '<span class="badge bg-success"><i class="bi bi-check-lg me-1"></i>Searchable</span>',
-    scanned:     '<span class="badge bg-warning text-dark"><i class="bi bi-image me-1"></i>Needs OCR</span>',
+    scanned:     '<span class="badge bg-warning text-dark"><i class="bi bi-image me-1"></i>Image-only (needs OCR)</span>',
     not_indexed: '<span class="badge bg-secondary"><i class="bi bi-dash me-1"></i>Not Indexed</span>',
   };
 
