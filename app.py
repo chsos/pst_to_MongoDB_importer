@@ -684,6 +684,28 @@ def billing_webhook():
 # Auth Routes
 # ---------------------------------------------------------------------------
 
+def _send_welcome_email(to_addr: str, name: str):
+    subject    = "Welcome to PSTBrowser!"
+    body_plain = (
+        f"Hi {name},\n\n"
+        f"Welcome to PSTBrowser! We're glad to have you.\n\n"
+        f"You can start importing your PST file right away at https://pstbrowser.com\n\n"
+        f"For support please email support@pstbrowser.com or call (571) 200-1551.\n\n"
+        f"Thank you,\nPSTBrowser"
+    )
+    body_html = (
+        f"<p>Hi {name},</p>"
+        f"<p>Welcome to PSTBrowser! We're glad to have you.</p>"
+        f"<p>You can start importing your PST file right away at "
+        f"<a href='https://pstbrowser.com'>pstbrowser.com</a>.</p>"
+        f"<p>For support please email "
+        f"<a href='mailto:support@pstbrowser.com'>support@pstbrowser.com</a> "
+        f"or call (571) 200-1551.</p>"
+        f"<p>Thank you,<br>PSTBrowser</p>"
+    )
+    _send_notification_email(to_addr, subject, body_plain, body_html)
+
+
 def _send_notification_email(to_addr: str, subject: str, body_plain: str, body_html: str):
     """Send a notification email using Resend or SMTP (same infrastructure as password reset)."""
     if not to_addr:
@@ -887,6 +909,7 @@ def register_local():
     }
     users.insert_one(doc)
     login_user(User(doc), remember=True)
+    _send_welcome_email(email, name)
     flash(f"Welcome, {name}! Your account has been created.", "success")
     return redirect(url_for("index") + "?tab=import")
 
@@ -1100,6 +1123,7 @@ def auth_google_callback():
         doc = {"_id": email, "email": email, "name": name, "provider": "google",
                "avatar_url": avatar_url, "created_at": now, "last_login": now}
         users.insert_one(doc)
+        _send_welcome_email(email, name)
 
     login_user(User(doc), remember=True)
     default = url_for("index") + ("?tab=import" if is_new else "")
@@ -1153,6 +1177,7 @@ def auth_microsoft_callback():
         doc = {"_id": email, "email": email, "name": name, "provider": "microsoft",
                "avatar_url": avatar_url, "created_at": now, "last_login": now}
         users.insert_one(doc)
+        _send_welcome_email(email, name)
 
     login_user(User(doc), remember=True)
     default = url_for("index") + ("?tab=import" if is_new else "")
