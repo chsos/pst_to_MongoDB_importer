@@ -277,6 +277,7 @@ def log_activity(response):
 
 # In-memory job registry  {job_id: {"queue": Queue, "status": str, "filename": str}}
 jobs: dict = {}
+_ocr_semaphore = threading.Semaphore(1)  # only 1 ocrmypdf process at a time to avoid OOM
 
 
 import re as _re_module
@@ -5674,10 +5675,11 @@ def _run_ocr_job(job_id: str, filenames: list, pdf_dir: str, pdf_text_dir: str, 
             continue
 
         try:
-            proc = subprocess.run(
-                [ocrmypdf_cmd, "--skip-text", "--quiet", src_path, tmp_path],
-                capture_output=True, text=True, timeout=300,
-            )
+            with _ocr_semaphore:
+                proc = subprocess.run(
+                    [ocrmypdf_cmd, "--skip-text", "--quiet", src_path, tmp_path],
+                    capture_output=True, text=True, timeout=300,
+                )
             # rc=6 → already has text (skipped); rc=2 w/ DigitalSignatureError → signed PDF
             stderr_text = (proc.stderr or "").strip()
             if proc.returncode == 2 and "DigitalSignatureError" in stderr_text:
