@@ -5551,6 +5551,12 @@ def ocr_pending():
     return jsonify({"pending": pending, "total": total})
 
 
+@app.route("/ocr-dashboard")
+def ocr_dashboard():
+    """Pretty HTML view of OCR status — delegates data to /ocr-status JSON."""
+    return render_template("ocr_dashboard.html")
+
+
 @app.route("/ocr-status")
 def ocr_status():
     """
