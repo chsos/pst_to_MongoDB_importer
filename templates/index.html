@@ -621,6 +621,9 @@
             <button class="btn btn-outline-secondary" onclick="setFileDatePreset('week')">This week</button>
             <button class="btn btn-outline-secondary" onclick="setFileDatePreset('month')">This month</button>
             <button class="btn btn-outline-secondary" onclick="setFileDatePreset('year')">This year</button>
+            <button class="btn btn-outline-secondary" onclick="setFileDatePreset('last_week')">Last week</button>
+            <button class="btn btn-outline-secondary" onclick="setFileDatePreset('last_month')">Last month</button>
+            <button class="btn btn-outline-secondary" onclick="setFileDatePreset('last_year')">Last year</button>
           </div>
           <div class="ms-auto d-flex align-items-center gap-1">
             <label class="small text-muted mb-0">Email date:</label>
@@ -3575,6 +3578,28 @@ function setFileDatePreset(preset) {
     const d = new Date(now);
     d.setDate(d.getDate() - d.getDay());
     from = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  } else if (preset === 'last_year') {
+    const y = now.getFullYear() - 1;
+    from = `${y}-01-01`;
+    document.getElementById('file-date-to').value = `${y}-12-31`;
+    document.getElementById('file-date-from').value = from;
+    searchFiles(); return;
+  } else if (preset === 'last_month') {
+    const d = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const last = new Date(now.getFullYear(), now.getMonth(), 0);
+    from = `${d.getFullYear()}-${pad(d.getMonth()+1)}-01`;
+    document.getElementById('file-date-to').value = `${last.getFullYear()}-${pad(last.getMonth()+1)}-${pad(last.getDate())}`;
+    document.getElementById('file-date-from').value = from;
+    searchFiles(); return;
+  } else if (preset === 'last_week') {
+    const start = new Date(now);
+    start.setDate(now.getDate() - now.getDay() - 7);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    from = `${start.getFullYear()}-${pad(start.getMonth()+1)}-${pad(start.getDate())}`;
+    document.getElementById('file-date-to').value = `${end.getFullYear()}-${pad(end.getMonth()+1)}-${pad(end.getDate())}`;
+    document.getElementById('file-date-from').value = from;
+    searchFiles(); return;
   }
   document.getElementById('file-date-from').value = from;
   document.getElementById('file-date-to').value   = today;
