@@ -3714,8 +3714,7 @@ def _attachment_filter_paths(date_from: str, date_to: str, sender: str) -> "set 
     """Return a set of disk_paths matching the given filters, or None if no filters active."""
     if not date_from and not date_to and not sender:
         return None
-    db   = get_user_db()
-    coll = db["emails"]
+    coll = get_col()
     match: dict = {}
     if date_from or date_to:
         dq: dict = {}
@@ -3729,8 +3728,8 @@ def _attachment_filter_paths(date_from: str, date_to: str, sender: str) -> "set 
             match["date"] = dq
     if sender:
         match["$or"] = [
-            {"sender":       {"$regex": sender, "$options": "i"}},
-            {"sender_email": {"$regex": sender, "$options": "i"}},
+            {"from_addr":   {"$regex": sender, "$options": "i"}},
+            {"sender_name": {"$regex": sender, "$options": "i"}},
         ]
     pipeline = [
         {"$match": match},
