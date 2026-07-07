@@ -618,13 +618,15 @@
           <span class="text-muted small">to</span>
           <input id="file-date-to" type="date" class="form-control form-control-sm" style="max-width:150px" title="To date">
           <div class="ms-auto d-flex align-items-center gap-1">
-            <label class="small text-muted mb-0">Sort:</label>
-            <select id="file-sort" class="form-select form-select-sm" style="max-width:180px" onchange="renderFileResults()">
-              <option value="date_desc">Date (newest first)</option>
-              <option value="date_asc">Date (oldest first)</option>
-              <option value="name_asc">Filename (A–Z)</option>
-              <option value="name_desc">Filename (Z–A)</option>
-            </select>
+            <label class="small text-muted mb-0">Email date:</label>
+            <div class="btn-group btn-group-sm">
+              <button id="file-sort-desc" class="btn btn-primary" onclick="setFileSort('date_desc')">
+                <i class="bi bi-sort-down me-1"></i>Newest
+              </button>
+              <button id="file-sort-asc" class="btn btn-outline-secondary" onclick="setFileSort('date_asc')">
+                <i class="bi bi-sort-up me-1"></i>Oldest
+              </button>
+            </div>
           </div>
         </div>
         <div class="d-flex align-items-center gap-2 flex-wrap">
@@ -3555,10 +3557,17 @@ async function searchFiles() {
   renderFileResults();
 }
 
+let _fileSort = 'date_desc';
+
+function setFileSort(s) {
+  _fileSort = s;
+  document.getElementById('file-sort-desc').className = s === 'date_desc' ? 'btn btn-sm btn-primary' : 'btn btn-sm btn-outline-secondary';
+  document.getElementById('file-sort-asc').className  = s === 'date_asc'  ? 'btn btn-sm btn-primary' : 'btn btn-sm btn-outline-secondary';
+  renderFileResults();
+}
+
 function renderFileResults() {
-  const box  = document.getElementById('file-results');
-  const sort = document.getElementById('file-sort').value;
-  const q    = document.getElementById('file-search-input').value.trim();
+  const box = document.getElementById('file-results');
 
   if (!_fileResults.length) {
     box.innerHTML = `<div class="text-center text-muted py-4">No files match.</div>`;
@@ -3566,11 +3575,8 @@ function renderFileResults() {
   }
 
   const sorted = [..._fileResults].sort((a, b) => {
-    if (sort === 'date_desc') return (b.email_date || '') > (a.email_date || '') ? 1 : -1;
-    if (sort === 'date_asc')  return (a.email_date || '') > (b.email_date || '') ? 1 : -1;
-    if (sort === 'name_asc')  return a.filename.localeCompare(b.filename);
-    if (sort === 'name_desc') return b.filename.localeCompare(a.filename);
-    return 0;
+    if (_fileSort === 'date_asc') return (a.email_date || '') > (b.email_date || '') ? 1 : -1;
+    return (b.email_date || '') > (a.email_date || '') ? 1 : -1;
   });
 
   box.innerHTML = '';
