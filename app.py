@@ -769,34 +769,36 @@ def _verify_recaptcha(token: str, min_score: float = 0.5) -> bool:
 @app.route("/sms-authorization", methods=["GET", "POST"])
 def sms_authorization():
     if request.method == "POST":
-        name  = request.form.get("name", "").strip()
-        phone = request.form.get("phone", "").strip()
+        phone   = request.form.get("phone", "").strip()
         consent = request.form.get("consent")
-        if not name or not phone or not consent:
-            flash("Please fill in all fields and check the consent box.", "danger")
+        if not phone or not consent:
+            flash("Please enter your phone number and check the consent box.", "danger")
             return render_template("sms_authorization.html")
         body_plain = (
-            f"SMS Authorization Received\n\n"
-            f"Name:  {name}\n"
+            f"PSTBrowser Text Alert Subscription\n\n"
             f"Phone: {phone}\n\n"
-            f"Consent: I consent to receive SMS messages from Paramount Promotions, Inc. at the phone number provided. "
-            f"By checking this box, you agree to receive internal text messages. Consent is a condition of application. "
-            f"Msg & data rates may apply. Reply STOP to unsubscribe."
+            f"Consent: Yes, I would like to receive automated text messages from PSTBrowser about account payment activity, "
+            f"promotional offers, and important updates. I understand I will receive up to 2 messages per month.\n\n"
+            f"Message Frequency: Up to 2 messages per month.\n"
+            f"Standard Rates: Message and data rates may apply.\n"
+            f"Help & Stop: Reply HELP for help or STOP to cancel any time."
         )
         body_html = (
-            f"<h3>SMS Authorization Received</h3>"
-            f"<p><strong>Name:</strong> {name}<br>"
-            f"<strong>Phone:</strong> {phone}</p>"
-            f"<p><strong>Consent:</strong> I consent to receive SMS messages from Paramount Promotions, Inc. "
-            f"at the phone number provided. By checking this box, you agree to receive internal text messages. "
-            f"Consent is a condition of application. Msg &amp; data rates may apply. Reply STOP to unsubscribe.</p>"
+            f"<h3>PSTBrowser Text Alert Subscription</h3>"
+            f"<p><strong>Phone:</strong> {phone}</p>"
+            f"<p><strong>Consent:</strong> Yes, I would like to receive automated text messages from PSTBrowser about "
+            f"account payment activity, promotional offers, and important updates. "
+            f"I understand I will receive up to 2 messages per month.</p>"
+            f"<p><strong>Message Frequency:</strong> Up to 2 messages per month.<br>"
+            f"<strong>Standard Rates:</strong> Message and data rates may apply.<br>"
+            f"<strong>Help &amp; Stop:</strong> Reply HELP for help or STOP to cancel any time.</p>"
         )
         _send_notification_email(
             "support@pstbrowser.com",
-            f"SMS Authorization — {name}",
+            f"Text Alert Subscription — {phone}",
             body_plain, body_html,
         )
-        flash("Thank you! Your SMS authorization has been submitted.", "success")
+        flash("Thank you! You have been signed up for PSTBrowser text alerts.", "success")
         return render_template("sms_authorization.html")
     return render_template("sms_authorization.html")
 

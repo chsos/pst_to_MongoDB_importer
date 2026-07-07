@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-  <title>SMS Message Authorization — PSTBrowser</title>
+  <title>Text Alert Subscription — PSTBrowser</title>
   <meta name="robots" content="noindex, nofollow">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
@@ -12,6 +12,7 @@
     body { background: #f4f6f9; }
     .navbar { background: #1a1f36; }
     .card { border-radius: 14px; }
+    .fine-print { font-size: .78rem; color: #6b7280; line-height: 1.6; }
   </style>
 </head>
 <body>
@@ -23,10 +24,11 @@
   </a>
 </nav>
 
-<div class="container" style="max-width:540px">
+<div class="container" style="max-width:520px">
   <div class="card shadow-sm border-0 p-4 p-md-5">
-    <h4 class="fw-bold mb-1"><i class="bi bi-phone me-2 text-primary"></i>SMS Message Authorization</h4>
-    <p class="text-muted small mb-4">Complete the form below to authorize SMS communications.</p>
+
+    <h4 class="fw-bold mb-1"><i class="bi bi-phone me-2 text-primary"></i>PSTBrowser Text Alert Subscription</h4>
+    <p class="text-muted small mb-4">Sign up to receive text alerts from PSTBrowser.</p>
 
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% for cat, msg in messages %}
@@ -35,25 +37,32 @@
     {% endwith %}
 
     <form method="POST" action="/sms-authorization">
-      <div class="mb-3">
-        <label class="form-label fw-semibold">Full Name <span class="text-danger">*</span></label>
-        <input type="text" name="name" class="form-control" placeholder="Your full name" required>
-      </div>
+
       <div class="mb-4">
-        <label class="form-label fw-semibold">Cell Phone Number <span class="text-danger">*</span></label>
+        <label class="form-label fw-semibold">Mobile Phone Number <span class="text-danger">*</span></label>
         <input type="tel" name="phone" class="form-control" placeholder="(555) 555-5555" required>
       </div>
+
       <div class="mb-4">
         <div class="form-check align-items-start d-flex gap-2">
           <input class="form-check-input mt-1 flex-shrink-0" type="checkbox" id="sms-consent" name="consent" required>
           <label class="form-check-label small text-muted" for="sms-consent">
-            <strong>SMS</strong> — I consent to receive SMS messages from Paramount Promotions, Inc. at the phone number provided. By checking this box, you agree to receive internal text messages. Consent is a condition of application. Msg &amp; data rates may apply. Reply STOP to unsubscribe.
+            Yes, I would like to receive automated text messages from PSTBrowser about account payment activity, promotional offers, and important updates. I understand I will receive up to 2 messages per month.
           </label>
         </div>
       </div>
-      <button type="submit" class="btn btn-primary w-100 fw-semibold">
-        <i class="bi bi-check-circle me-2"></i>Submit Authorization
+
+      <div class="fine-print mb-4 border rounded p-3 bg-light">
+        <p class="mb-1"><strong>Message Frequency:</strong> You will receive up to 2 messages per month.</p>
+        <p class="mb-1"><strong>Standard Rates:</strong> Message and data rates may apply depending on your mobile phone service plan.</p>
+        <p class="mb-2"><strong>Help &amp; Stop:</strong> Reply HELP for help or STOP to cancel any time.</p>
+        <p class="mb-0">By providing your phone number and checking the box above, you agree to receive text messages from PSTBrowser. Consent is not required to make a purchase. <a href="/terms" target="_blank">Terms of Service</a> &nbsp;|&nbsp; <a href="/privacy" target="_blank">Privacy Policy</a>.</p>
+      </div>
+
+      <button type="submit" class="btn btn-primary w-100 fw-semibold py-2">
+        <i class="bi bi-check-circle me-2"></i>Yes, sign me up!
       </button>
+
     </form>
   </div>
   <p class="text-center text-muted small mt-3">
