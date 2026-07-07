@@ -3170,9 +3170,11 @@ def search_files():
     Params: q (required), folder (optional subfolder name or 'all')
     Returns up to 200 matches with filename, folder, and a snippet.
     """
-    q      = request.args.get("q", "").strip()
-    folder = request.args.get("folder", "all").strip()
-    if not q:
+    q         = request.args.get("q", "").strip()
+    folder    = request.args.get("folder", "all").strip()
+    date_from = request.args.get("date_from", "").strip()
+    date_to   = request.args.get("date_to",   "").strip()
+    if not q and not date_from and not date_to:
         return jsonify({"error": "q is required"}), 400
 
     TEXT_EXTS = {".txt", ".html", ".htm", ".xml", ".json",
@@ -3255,18 +3257,19 @@ def search_files():
 
     pdf_cache_ready = cache_counts.get("pdf", 0) > 0
 
-    # ── 3. Filename matches (files not already in content results) ───────────
-    content_keys = {(r["folder"], r["filename"]) for r in results}
-    for fn in ["pdf", "Word", "Excel", "PowerPoint", "Images", "Videos", "Text", "Other"]:
-        if folder not in ("all", fn):
-            continue
-        fp = os.path.join(_ad, fn)
-        if not os.path.isdir(fp):
-            continue
-        for fname in os.listdir(fp):
-            if q_lower in fname.lower() and os.path.isfile(os.path.join(fp, fname)):
-                if (fn, fname) not in content_keys:
-                    results.append({"folder": fn, "filename": fname, "snippet": None})
+    # ── 3. Filename matches (skip when date-only search — no filename relevance)
+    if q:
+        content_keys = {(r["folder"], r["filename"]) for r in results}
+        for fn in ["pdf", "Word", "Excel", "PowerPoint", "Images", "Videos", "Text", "Other"]:
+            if folder not in ("all", fn):
+                continue
+            fp = os.path.join(_ad, fn)
+            if not os.path.isdir(fp):
+                continue
+            for fname in os.listdir(fp):
+                if q_lower in fname.lower() and os.path.isfile(os.path.join(fp, fname)):
+                    if (fn, fname) not in content_keys:
+                        results.append({"folder": fn, "filename": fname, "snippet": None})
 
     # ── 4. Enrich results with email date from MongoDB ───────────────────────
     if results:
@@ -3291,6 +3294,19 @@ def search_files():
                     res["email_date"] = d.strftime("%Y-%m-%d") if hasattr(d, "strftime") else str(d)
         except Exception:
             pass
+
+    # ── 5. Apply date filter ─────────────────────────────────────────────────
+    if date_from or date_to:
+        def _in_range(r):
+            ed = r.get("email_date")
+            if not ed:
+                return False   # no date → exclude when filtering by date
+            if date_from and ed < date_from:
+                return False
+            if date_to   and ed > date_to:
+                return False
+            return True
+        results = [r for r in results if _in_range(r)]
 
     return jsonify({
         "q":               q,

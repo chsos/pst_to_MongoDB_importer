@@ -612,6 +612,12 @@
             <i class="bi bi-x-lg"></i>
           </button>
         </div>
+        <div class="d-flex gap-2 align-items-center mb-2 flex-wrap">
+          <label class="small text-muted mb-0">Email date:</label>
+          <input id="file-date-from" type="date" class="form-control form-control-sm" style="max-width:150px" title="From date">
+          <span class="text-muted small">to</span>
+          <input id="file-date-to" type="date" class="form-control form-control-sm" style="max-width:150px" title="To date">
+        </div>
         <div class="d-flex align-items-center gap-2 flex-wrap">
           <div id="file-search-status" class="small text-muted flex-grow-1"></div>
           <button id="pdf-index-btn" class="btn btn-sm btn-outline-warning"
@@ -3508,16 +3514,20 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function searchFiles() {
-  const q      = document.getElementById('file-search-input').value.trim();
-  const folder = document.getElementById('file-search-folder').value;
-  const status = document.getElementById('file-search-status');
-  const box    = document.getElementById('file-results');
-  if (!q) return;
+  const q        = document.getElementById('file-search-input').value.trim();
+  const folder   = document.getElementById('file-search-folder').value;
+  const dateFrom = document.getElementById('file-date-from').value;
+  const dateTo   = document.getElementById('file-date-to').value;
+  const status   = document.getElementById('file-search-status');
+  const box      = document.getElementById('file-results');
+  if (!q && !dateFrom && !dateTo) return;
 
   status.textContent = 'Searching…';
   box.innerHTML = '<div class="text-center text-muted py-4"><span class="spinner-border spinner-border-sm me-2"></span>Searching files…</div>';
 
   const params = new URLSearchParams({ q, folder });
+  if (dateFrom) params.set('date_from', dateFrom);
+  if (dateTo)   params.set('date_to',   dateTo);
   const r  = await fetch('/search-files?' + params);
   const d  = await r.json();
 
@@ -3579,6 +3589,8 @@ async function searchFiles() {
 
 function clearFileSearch() {
   document.getElementById('file-search-input').value = '';
+  document.getElementById('file-date-from').value = '';
+  document.getElementById('file-date-to').value = '';
   document.getElementById('file-search-status').textContent = '';
   document.getElementById('file-results').innerHTML = '';
 }
