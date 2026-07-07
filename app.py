@@ -13,6 +13,7 @@ import queue
 import threading
 import subprocess
 import datetime
+import time
 
 import logging
 import logging.handlers
@@ -5935,6 +5936,104 @@ def ocr_progress(job_id: str):
         mimetype="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+# ---------------------------------------------------------------------------
+# OCR auto-resume
+# ---------------------------------------------------------------------------
+# OCR jobs run as daemon threads inside gunicorn workers, so a service
+# restart (deploy) kills them mid-run and the remaining PDFs stay un-indexed
+# until someone manually re-runs OCR from the dashboard. On boot, one worker
+# (elected via a non-blocking file lock, so the 3 gunicorn workers don't all
+# start it) scans every user's pdf/ folder and OCRs anything without a
+# text-cache entry. Idempotent: already-indexed files are skipped, so being
+# killed by the next deploy just means the following boot picks up the rest.
+
+_ocr_resume_lock_fh = None   # held open for the life of the winning process
+
+
+def _acquire_ocr_resume_lock() -> bool:
+    global _ocr_resume_lock_fh
+    try:
+        import fcntl
+    except ImportError:
+        return False   # Windows dev box — auto-resume is a production concern
+    try:
+        os.makedirs(ATTACH_DIR, exist_ok=True)
+        fh = open(os.path.join(ATTACH_DIR, ".ocr_autoresume.lock"), "a")
+        fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        return False   # another worker holds the lock
+    fh.seek(0)
+    fh.truncate()
+    fh.write(str(os.getpid()))
+    fh.flush()
+    _ocr_resume_lock_fh = fh
+    return True
+
+
+def _uid_to_email_map() -> dict:
+    """Map user-id directory names back to account emails (for the completion mail)."""
+    mapping = {}
+    try:
+        for u in _get_client()[DB_NAME]["pst_users"].find({}, {"email": 1}):
+            email = (u.get("email") or "").lower()
+            if email:
+                uid = _re_module.sub(r"[^a-z0-9]", "_", email).strip("_")
+                mapping[uid] = email
+    except Exception:
+        pass
+    return mapping
+
+
+def _ocr_autoresume():
+    time.sleep(60)   # let the boot settle; a redeploy would just restart us
+    emails = _uid_to_email_map()
+    try:
+        user_dirs = sorted(os.listdir(ATTACH_DIR))
+    except OSError:
+        return
+    for uid in user_dirs:
+        pdf_dir = os.path.join(ATTACH_DIR, uid, "pdf")
+        txt_dir = os.path.join(ATTACH_DIR, uid, "pdf_text")
+        if not os.path.isdir(pdf_dir):
+            continue
+        pending = [
+            f for f in sorted(os.listdir(pdf_dir))
+            if f.lower().endswith(".pdf")
+            and not os.path.isfile(os.path.join(txt_dir, os.path.splitext(f)[0] + ".txt"))
+        ]
+        if not pending:
+            continue
+        job_id = f"ocr-autoresume-{uid}"
+        q = queue.Queue()
+        jobs[job_id] = {"queue": q, "status": "running",
+                        "filename": f"{len(pending)} PDF(s) (auto-resume)"}
+        print(f"[ocr-autoresume] {uid}: {len(pending)} un-indexed PDF(s), starting OCR",
+              flush=True)
+        worker = threading.Thread(
+            target=_run_ocr_job,
+            args=(job_id, pending, pdf_dir, txt_dir, q, emails.get(uid, "")),
+            daemon=True,
+        )
+        worker.start()
+        # Drain progress events into the journal; also serializes users so only
+        # one account's OCR runs at a time.
+        while True:
+            item = q.get()
+            if item is None:
+                break
+            try:
+                msg = json.loads(item).get("msg", "")
+            except Exception:
+                msg = str(item)
+            if not msg.startswith("  ") or "Error" in msg or "warning" in msg:
+                print(f"[ocr-autoresume] {uid}: {msg}", flush=True)
+        worker.join()
+
+
+if _acquire_ocr_resume_lock():
+    threading.Thread(target=_ocr_autoresume, daemon=True).start()
 
 
 # ---------------------------------------------------------------------------
