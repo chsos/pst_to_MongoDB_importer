@@ -3572,26 +3572,28 @@ def list_files():
                         "size_str":    size_str,
                         "email_ts":    None,    # filled from MongoDB below
                         "email_str":   "",
+                        "email_id":    "",
+                        "email_from":  "",
                     })
                     all_fnames.append(fname)
                     all_fpaths.append(fpath)
                 except Exception:
                     pass
 
-    # Build date maps from MongoDB:
-    #   1. disk_path → date  (exact match; most reliable when paths haven't changed)
-    #   2. filename  → date  (fallback for cross-platform imports where paths differ)
+    # Build source-email maps from MongoDB ({date, id, sender} per file):
+    #   1. disk_path → info  (exact match; most reliable when paths haven't changed)
+    #   2. filename  → info  (fallback for cross-platform imports where paths differ)
     # We try the app's configured collection first.  If it yields nothing we also
     # try the legacy local database (mydb.pst_items on localhost) which holds data
     # imported before the multi-user / remote-MongoDB migration.
-    path_to_date:  dict = {}
-    fname_to_date: dict = {}
+    path_to_info:  dict = {}
+    fname_to_info: dict = {}
 
     _fpath_set  = set(all_fpaths)
     _fname_set  = set(all_fnames)
 
     def _fill_date_maps(col):
-        """Populate path_to_date and fname_to_date from a collection."""
+        """Populate path_to_info and fname_to_info from a collection."""
         if not _fpath_set and not _fname_set:
             return
         try:
@@ -3606,22 +3608,27 @@ def list_files():
             for row in col.aggregate([
                 {"$match":   match_stage},
                 {"$unwind":  "$attachments"},
-                {"$project": {"_id": 0,
+                {"$project": {"_id": 1,
                                "dp": "$attachments.disk_path",
                                "fn": "$attachments.filename",
-                               "d":  "$date"}},
+                               "d":  "$date",
+                               "fa": "$from_addr",
+                               "sn": "$sender_name"}},
             ], allowDiskUse=True):
                 d  = row.get("d")
                 if not d:
                     continue
+                info = {"d":   d,
+                        "id":  str(row["_id"]),
+                        "who": row.get("fa") or row.get("sn") or ""}
                 dp = row.get("dp")
                 fn = row.get("fn")
                 if dp and dp in _fpath_set:
-                    if dp not in path_to_date or d < path_to_date[dp]:
-                        path_to_date[dp] = d
+                    if dp not in path_to_info or d < path_to_info[dp]["d"]:
+                        path_to_info[dp] = info
                 if fn and fn in _fname_set:
-                    if fn not in fname_to_date or d < fname_to_date[fn]:
-                        fname_to_date[fn] = d
+                    if fn not in fname_to_info or d < fname_to_info[fn]["d"]:
+                        fname_to_info[fn] = info
         except Exception:
             pass
 
@@ -3630,8 +3637,8 @@ def list_files():
         _fill_date_maps(get_col())
 
         # Fallback: if we still have files with no date, try the legacy local DB
-        unmatched_paths  = {f["_fpath"]   for f in files if f["_fpath"] not in path_to_date}
-        unmatched_fnames = {f["filename"] for f in files if f["filename"] not in fname_to_date}
+        unmatched_paths  = {f["_fpath"]   for f in files if f["_fpath"] not in path_to_info}
+        unmatched_fnames = {f["filename"] for f in files if f["filename"] not in fname_to_info}
         if unmatched_paths or unmatched_fnames:
             try:
                 _legacy_col = MongoClient(
@@ -3643,11 +3650,14 @@ def list_files():
                 pass
 
     for f in files:
-        fp = f.pop("_fpath")
-        dt = path_to_date.get(fp) or fname_to_date.get(f["filename"])
-        if dt:
-            f["email_ts"]  = dt.timestamp()
-            f["email_str"] = dt.strftime("%Y-%m-%d %H:%M")
+        fp   = f.pop("_fpath")
+        info = path_to_info.get(fp) or fname_to_info.get(f["filename"])
+        if info:
+            dt = info["d"]
+            f["email_ts"]   = dt.timestamp()
+            f["email_str"]  = dt.strftime("%Y-%m-%d %H:%M")
+            f["email_id"]   = info["id"]
+            f["email_from"] = info["who"]
         else:
             try:
                 mtime = os.stat(fp).st_mtime

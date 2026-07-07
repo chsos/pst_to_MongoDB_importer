@@ -766,11 +766,15 @@
                   style="cursor:pointer;white-space:nowrap">
                 Email Date <i class="sort-icon bi bi-caret-down-fill ms-1 text-primary"></i>
               </th>
+              <th id="bh-from" onclick="sortBrowseBy('from')"
+                  style="cursor:pointer;white-space:nowrap">
+                From Email <i class="sort-icon bi bi-chevron-expand ms-1 text-muted opacity-50"></i>
+              </th>
               <th style="width:56px"></th>
             </tr>
           </thead>
           <tbody id="browse-tbody">
-            <tr><td colspan="5" class="text-center text-muted py-4 small">
+            <tr><td colspan="6" class="text-center text-muted py-4 small">
               Loading files…
             </td></tr>
           </tbody>
@@ -4504,7 +4508,7 @@ async function searchBrowseFiles() {
 
   _browseSearchActive = true;
   status.textContent  = 'Searching…';
-  tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">' +
+  tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">' +
     '<span class="spinner-border spinner-border-sm me-2"></span>Searching files…</td></tr>';
 
   try {
@@ -4521,7 +4525,7 @@ async function searchBrowseFiles() {
       `${d.searched.toLocaleString()} files searched${cacheNote}`;
 
     if (!d.results.length) {
-      tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-4">` +
+      tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4">` +
         `No files contain <strong>${esc(q)}</strong>.</td></tr>`;
       return;
     }
@@ -4534,7 +4538,7 @@ async function searchBrowseFiles() {
       const tr      = document.createElement('tr');
       tr.innerHTML  = `
         <td><span class="badge bg-secondary">${esc(res.folder === '.' ? '(root)' : res.folder)}</span></td>
-        <td colspan="3" style="max-width:0">
+        <td colspan="4" style="max-width:0">
           <div class="small fw-semibold" style="word-break:break-all">${esc(res.filename)}</div>
           <div class="text-muted" style="font-size:.75rem;white-space:pre-wrap;word-break:break-word;
                max-height:72px;overflow:hidden;line-height:1.4">${esc(res.snippet)}</div>
@@ -4558,7 +4562,7 @@ async function searchBrowseFiles() {
 
     if (d.total >= 200) {
       tbody.insertAdjacentHTML('beforeend',
-        `<tr><td colspan="5" class="text-center text-muted small py-2">` +
+        `<tr><td colspan="6" class="text-center text-muted small py-2">` +
         `Showing first 200 matches — refine your search to narrow results.</td></tr>`);
     }
   } catch (e) {
@@ -4761,7 +4765,7 @@ async function loadBrowseFiles() {
   const tbody  = document.getElementById('browse-tbody');
   const status = document.getElementById('browse-status');
 
-  tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">' +
+  tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">' +
     '<span class="spinner-border spinner-border-sm me-2"></span>Loading…</td></tr>';
   status.textContent = '';
   document.getElementById('browse-overflow').style.display = 'none';
@@ -4782,7 +4786,7 @@ async function loadBrowseFiles() {
     }
     renderBrowseTable();
   } catch {
-    tbody.innerHTML = '<tr><td colspan="5" class="text-danger text-center py-3">Error loading files.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" class="text-danger text-center py-3">Error loading files.</td></tr>';
   }
 }
 
@@ -4807,6 +4811,7 @@ function _sortBrowseData() {
     if      (_browseSort === 'date')   { va = a.email_ts;           vb = b.email_ts; }
     else if (_browseSort === 'size')   { va = a.size_bytes;            vb = b.size_bytes; }
     else if (_browseSort === 'name')   { va = a.filename.toLowerCase(); vb = b.filename.toLowerCase(); }
+    else if (_browseSort === 'from')   { va = (a.email_from || '').toLowerCase(); vb = (b.email_from || '').toLowerCase(); }
     else /* folder */                  { va = a.folder.toLowerCase();   vb = b.folder.toLowerCase(); }
     if (va < vb) return asc ? -1 :  1;
     if (va > vb) return asc ?  1 : -1;
@@ -4815,7 +4820,7 @@ function _sortBrowseData() {
 }
 
 function _updateBrowseHeaders() {
-  ['folder','name','size','date'].forEach(col => {
+  ['folder','name','size','date','from'].forEach(col => {
     const th   = document.getElementById(`bh-${col}`);
     if (!th) return;
     const icon = th.querySelector('.sort-icon');
@@ -4833,7 +4838,7 @@ function renderBrowseTable() {
   _updateBrowseHeaders();
 
   if (!_browseData.length) {
-    tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">No files found.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">No files found.</td></tr>';
     return;
   }
 
@@ -4844,6 +4849,11 @@ function renderBrowseTable() {
     const viewUrl = `/local-file/${encodeURIComponent(rel).replace(/%2F/g,'/')}`;
     const dlUrl   = viewUrl + '?dl=1';
 
+    const fromHtml = f.email_id
+      ? `<a href="#" class="browse-from-link text-decoration-none" title="Open source email">
+           <i class="bi bi-envelope-open me-1"></i>${esc(f.email_from || '(open email)')}</a>`
+      : `<span class="text-muted">${esc(f.email_from || '—')}</span>`;
+
     const tr = document.createElement('tr');
     tr.className = 'browse-row-click';
     tr.title     = 'Click to preview';
@@ -4852,6 +4862,7 @@ function renderBrowseTable() {
       <td class="small fw-semibold" style="max-width:300px;word-break:break-all">${esc(f.filename)}</td>
       <td class="text-end text-muted small text-nowrap">${esc(f.size_str)}</td>
       <td class="text-muted small text-nowrap">${esc(f.email_str)}</td>
+      <td class="small" style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${fromHtml}</td>
       <td class="text-nowrap">
         <a href="${viewUrl}" target="_blank" rel="noopener"
            class="btn btn-sm btn-outline-primary border-0 px-1 py-0" title="Open in new tab">
@@ -4864,6 +4875,11 @@ function renderBrowseTable() {
       </td>`;
     tr.addEventListener('click', () => openPreview(rel, f.filename));
     tr.querySelectorAll('a').forEach(a => a.addEventListener('click', e => e.stopPropagation()));
+    const fromLink = tr.querySelector('.browse-from-link');
+    if (fromLink) fromLink.addEventListener('click', e => {
+      e.preventDefault();
+      openRecord(f.email_id);
+    });
     tbody.appendChild(tr);
   });
 }
