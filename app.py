@@ -3268,6 +3268,30 @@ def search_files():
                 if (fn, fname) not in content_keys:
                     results.append({"folder": fn, "filename": fname, "snippet": None})
 
+    # ── 4. Enrich results with email date from MongoDB ───────────────────────
+    if results:
+        col = get_col()
+        # Build a set of disk_paths to look up
+        path_to_result: dict = {}
+        for res in results:
+            disk_path = os.path.join(_ad, res["folder"], res["filename"])
+            path_to_result[disk_path] = res
+
+        try:
+            rows = col.aggregate([
+                {"$match": {"attachments.disk_path": {"$in": list(path_to_result.keys())}}},
+                {"$unwind": "$attachments"},
+                {"$match": {"attachments.disk_path": {"$in": list(path_to_result.keys())}}},
+                {"$project": {"_id": 0, "dp": "$attachments.disk_path", "date": "$date"}},
+            ], allowDiskUse=True)
+            for row in rows:
+                res = path_to_result.get(row.get("dp"))
+                if res and row.get("date") and "email_date" not in res:
+                    d = row["date"]
+                    res["email_date"] = d.strftime("%Y-%m-%d") if hasattr(d, "strftime") else str(d)
+        except Exception:
+            pass
+
     return jsonify({
         "q":               q,
         "folder":          folder,

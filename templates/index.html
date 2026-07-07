@@ -3539,11 +3539,15 @@ async function searchFiles() {
 
     const card = document.createElement('div');
     card.className = 'card shadow-sm mb-2';
+    const dateHtml = res.email_date
+      ? `<span class="text-muted small ms-1"><i class="bi bi-calendar3 me-1"></i>${esc(res.email_date)}</span>`
+      : '';
     card.innerHTML = `
       <div class="card-body py-2">
         <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
           <span class="badge bg-secondary">${esc(res.folder)}</span>
           <span class="fw-semibold small flex-grow-1">${esc(res.filename)}</span>
+          ${dateHtml}
           <button class="btn btn-sm btn-outline-success border-0 px-1 py-0 btn-prev-file" title="Preview">
             <i class="bi bi-eye"></i>
           </button>
