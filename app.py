@@ -2549,7 +2549,7 @@ def records():
 
     total = col.count_documents(query)
 
-    projection = {"subject": 1, "from_addr": 1, "date": 1,
+    projection = {"subject": 1, "from_addr": 1, "sender_name": 1, "date": 1,
                   "has_attachments": 1, "item_type": 1, "body_plain": 1,
                   "folder_path": 1, "to_addrs": 1, "tags": 1}
     if q:
@@ -2568,6 +2568,7 @@ def records():
             "_id":             str(doc["_id"]),
             "subject":         doc.get("subject") or "(no subject)",
             "from_addr":       doc.get("from_addr") or "",
+            "sender_name":     doc.get("sender_name") or "",
             "to_addrs":        doc.get("to_addrs") or [],
             "date":            doc["date"].strftime("%Y-%m-%d %H:%M") if doc.get("date") else "",
             "has_attachments": doc.get("has_attachments", False),
@@ -2592,6 +2593,36 @@ def records():
         "search_mode": "text" if q else "",
         "fuzzy":       False,
     })
+
+
+@app.route("/appointments-calendar")
+def appointments_calendar():
+    """Appointments for one month, bucketed by day (drives the Appointments tab calendar)."""
+    try:
+        year  = int(request.args.get("year",  0))
+        month = int(request.args.get("month", 0))
+    except ValueError:
+        year = month = 0
+    if not (1 <= month <= 12) or not (1900 <= year <= 2200):
+        return jsonify({"error": "valid year and month required"}), 400
+    start = datetime.datetime(year, month, 1)
+    end   = datetime.datetime(year + 1, 1, 1) if month == 12 \
+            else datetime.datetime(year, month + 1, 1)
+    cursor = (get_col()
+              .find({"item_type": "appointment", "date": {"$gte": start, "$lt": end}},
+                    {"subject": 1, "sender_name": 1, "from_addr": 1, "date": 1})
+              .sort("date", 1).limit(2000))
+    days: dict = {}
+    total = 0
+    for doc in cursor:
+        days.setdefault(str(doc["date"].day), []).append({
+            "_id":     str(doc["_id"]),
+            "time":    doc["date"].strftime("%H:%M"),
+            "subject": doc.get("subject") or "(no subject)",
+            "who":     doc.get("from_addr") or doc.get("sender_name") or "",
+        })
+        total += 1
+    return jsonify({"year": year, "month": month, "days": days, "total": total})
 
 
 # ---------------------------------------------------------------------------
