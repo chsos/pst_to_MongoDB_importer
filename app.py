@@ -3710,13 +3710,48 @@ def clear_files():
     return jsonify({"deleted": deleted, "errors": errors})
 
 
+def _attachment_filter_paths(date_from: str, date_to: str, sender: str) -> "set | None":
+    """Return a set of disk_paths matching the given filters, or None if no filters active."""
+    if not date_from and not date_to and not sender:
+        return None
+    db   = get_user_db()
+    coll = db["emails"]
+    match: dict = {}
+    if date_from or date_to:
+        dq: dict = {}
+        if date_from:
+            try: dq["$gte"] = datetime.datetime.strptime(date_from, "%Y-%m-%d")
+            except ValueError: pass
+        if date_to:
+            try: dq["$lte"] = datetime.datetime.strptime(date_to, "%Y-%m-%d").replace(hour=23, minute=59, second=59)
+            except ValueError: pass
+        if dq:
+            match["date"] = dq
+    if sender:
+        match["$or"] = [
+            {"sender":       {"$regex": sender, "$options": "i"}},
+            {"sender_email": {"$regex": sender, "$options": "i"}},
+        ]
+    pipeline = [
+        {"$match": match},
+        {"$unwind": "$attachments"},
+        {"$match": {"attachments.disk_path": {"$exists": True, "$ne": ""}}},
+        {"$group": {"_id": "$attachments.disk_path"}},
+    ]
+    return {doc["_id"] for doc in coll.aggregate(pipeline)}
+
+
 @app.route("/export-info")
 def export_info():
     """Return file count and total uncompressed size for selected folders."""
-    _ad     = get_attach_dir()
-    folders = request.args.getlist("folder")
-    roots   = ([_ad] if not folders or "all" in folders
-               else [os.path.join(_ad, f) for f in folders])
+    _ad       = get_attach_dir()
+    folders   = request.args.getlist("folder")
+    date_from = request.args.get("date_from", "").strip()
+    date_to   = request.args.get("date_to",   "").strip()
+    sender    = request.args.get("sender",    "").strip()
+    roots     = ([_ad] if not folders or "all" in folders
+                 else [os.path.join(_ad, f) for f in folders])
+    allowed   = _attachment_filter_paths(date_from, date_to, sender)
     total_files = 0
     total_bytes = 0
     for root in roots:
@@ -3724,8 +3759,11 @@ def export_info():
             continue
         for dirpath, _, filenames in os.walk(root):
             for fname in filenames:
+                fpath = os.path.join(dirpath, fname)
+                if allowed is not None and fpath not in allowed:
+                    continue
                 try:
-                    total_bytes += os.path.getsize(os.path.join(dirpath, fname))
+                    total_bytes += os.path.getsize(fpath)
                     total_files += 1
                 except Exception:
                     pass
@@ -3739,10 +3777,14 @@ def export_info():
 def export_zip():
     """Stream a ZIP archive of the selected attachment folders."""
     import zipfile
-    _ad     = get_attach_dir()
-    folders = request.args.getlist("folder")
-    roots   = ([_ad] if not folders or "all" in folders
-               else [os.path.join(_ad, f) for f in folders])
+    _ad       = get_attach_dir()
+    folders   = request.args.getlist("folder")
+    date_from = request.args.get("date_from", "").strip()
+    date_to   = request.args.get("date_to",   "").strip()
+    sender    = request.args.get("sender",    "").strip()
+    roots     = ([_ad] if not folders or "all" in folders
+                 else [os.path.join(_ad, f) for f in folders])
+    allowed   = _attachment_filter_paths(date_from, date_to, sender)
 
     def generate():
         buf = io.BytesIO()
@@ -3754,6 +3796,8 @@ def export_zip():
                     rel_dir = os.path.relpath(dirpath, _ad).replace(os.sep, "/")
                     for fname in filenames:
                         fpath   = os.path.join(dirpath, fname)
+                        if allowed is not None and fpath not in allowed:
+                            continue
                         arcname = f"{rel_dir}/{fname}" if rel_dir != "." else fname
                         try:
                             zf.write(fpath, arcname)

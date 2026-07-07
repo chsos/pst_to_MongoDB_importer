@@ -1577,8 +1577,24 @@
       <div class="card-body">
 
         <p class="text-muted small mb-3">
-          Select the folders to include, estimate the size, then download a ZIP archive.
+          Optionally filter by email date or sender, select folders, then download a ZIP.
         </p>
+
+        <!-- Filters -->
+        <div class="row g-2 mb-3">
+          <div class="col-md-4">
+            <label class="form-label small fw-semibold mb-1">Email date from</label>
+            <input type="date" id="exd-date-from" class="form-control form-control-sm">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small fw-semibold mb-1">Email date to</label>
+            <input type="date" id="exd-date-to" class="form-control form-control-sm">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small fw-semibold mb-1">Sender contains</label>
+            <input type="text" id="exd-sender" class="form-control form-control-sm" placeholder="e.g. andy@example.com">
+          </div>
+        </div>
 
         <!-- Folder checkboxes -->
         <div id="exd-folder-checks" class="mb-3">
@@ -5812,28 +5828,37 @@ function _exdGetSelectedFolders() {
   return [...document.querySelectorAll('.exd-folder-cb:checked')].map(cb => cb.value);
 }
 
+function _exdBuildParams() {
+  const folders   = _exdGetSelectedFolders();
+  const params    = new URLSearchParams(folders.map(f => ['folder', f]));
+  const dateFrom  = document.getElementById('exd-date-from').value;
+  const dateTo    = document.getElementById('exd-date-to').value;
+  const sender    = document.getElementById('exd-sender').value.trim();
+  if (dateFrom) params.set('date_from', dateFrom);
+  if (dateTo)   params.set('date_to',   dateTo);
+  if (sender)   params.set('sender',    sender);
+  return { folders, params };
+}
+
 async function exdCalcSize() {
-  const folders = _exdGetSelectedFolders();
-  const info    = document.getElementById('exd-info');
+  const { folders, params } = _exdBuildParams();
+  const info = document.getElementById('exd-info');
   if (!folders.length) { info.textContent = 'No folders selected.'; return; }
   info.textContent = 'Calculating…';
   try {
-    const params = new URLSearchParams(folders.map(f => ['folder', f]));
     const r = await fetch('/export-info?' + params);
     const d = await r.json();
-    info.textContent =
-      `${d.files.toLocaleString()} files · ~${d.size_str} uncompressed`;
+    info.textContent = `${d.files.toLocaleString()} files · ~${d.size_str} uncompressed`;
   } catch {
     info.textContent = 'Error estimating size.';
   }
 }
 
 function exdDownloadZip() {
-  const folders = _exdGetSelectedFolders();
-  const info    = document.getElementById('exd-info');
+  const { folders, params } = _exdBuildParams();
+  const info = document.getElementById('exd-info');
   if (!folders.length) { info.textContent = 'No folders selected.'; return; }
   info.textContent = 'Preparing download…';
-  const params = new URLSearchParams(folders.map(f => ['folder', f]));
   window.location = '/export-zip?' + params;
   setTimeout(() => { info.textContent = ''; }, 3000);
 }
