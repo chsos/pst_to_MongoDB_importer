@@ -617,6 +617,11 @@
           <input id="file-date-from" type="date" class="form-control form-control-sm" style="max-width:150px" title="From date">
           <span class="text-muted small">to</span>
           <input id="file-date-to" type="date" class="form-control form-control-sm" style="max-width:150px" title="To date">
+          <div class="btn-group btn-group-sm">
+            <button class="btn btn-outline-secondary" onclick="setFileDatePreset('week')">This week</button>
+            <button class="btn btn-outline-secondary" onclick="setFileDatePreset('month')">This month</button>
+            <button class="btn btn-outline-secondary" onclick="setFileDatePreset('year')">This year</button>
+          </div>
           <div class="ms-auto d-flex align-items-center gap-1">
             <label class="small text-muted mb-0">Email date:</label>
             <div class="btn-group btn-group-sm">
@@ -3555,6 +3560,25 @@ async function searchFiles() {
 
   _fileResults = d.results || [];
   renderFileResults();
+}
+
+function setFileDatePreset(preset) {
+  const now   = new Date();
+  const pad   = n => String(n).padStart(2, '0');
+  const today = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+  let from = '';
+  if (preset === 'year') {
+    from = `${now.getFullYear()}-01-01`;
+  } else if (preset === 'month') {
+    from = `${now.getFullYear()}-${pad(now.getMonth()+1)}-01`;
+  } else if (preset === 'week') {
+    const d = new Date(now);
+    d.setDate(d.getDate() - d.getDay());
+    from = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  }
+  document.getElementById('file-date-from').value = from;
+  document.getElementById('file-date-to').value   = today;
+  searchFiles();
 }
 
 let _fileSort = 'date_desc';
