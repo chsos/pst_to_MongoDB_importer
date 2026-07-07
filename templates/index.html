@@ -617,6 +617,15 @@
           <input id="file-date-from" type="date" class="form-control form-control-sm" style="max-width:150px" title="From date">
           <span class="text-muted small">to</span>
           <input id="file-date-to" type="date" class="form-control form-control-sm" style="max-width:150px" title="To date">
+          <div class="ms-auto d-flex align-items-center gap-1">
+            <label class="small text-muted mb-0">Sort:</label>
+            <select id="file-sort" class="form-select form-select-sm" style="max-width:180px" onchange="renderFileResults()">
+              <option value="date_desc">Date (newest first)</option>
+              <option value="date_asc">Date (oldest first)</option>
+              <option value="name_asc">Filename (A–Z)</option>
+              <option value="name_desc">Filename (Z–A)</option>
+            </select>
+          </div>
         </div>
         <div class="d-flex align-items-center gap-2 flex-wrap">
           <div id="file-search-status" class="small text-muted flex-grow-1"></div>
@@ -3513,6 +3522,8 @@ document.addEventListener('DOMContentLoaded', () => {
   if (binp) binp.addEventListener('keydown', e => { if (e.key === 'Enter') searchBrowseFiles(); });
 });
 
+let _fileResults = [];
+
 async function searchFiles() {
   const q        = document.getElementById('file-search-input').value.trim();
   const folder   = document.getElementById('file-search-folder').value;
@@ -3528,34 +3539,50 @@ async function searchFiles() {
   const params = new URLSearchParams({ q, folder });
   if (dateFrom) params.set('date_from', dateFrom);
   if (dateTo)   params.set('date_to',   dateTo);
-  const r  = await fetch('/search-files?' + params);
-  const d  = await r.json();
+  const r = await fetch('/search-files?' + params);
+  const d = await r.json();
 
   if (d.error) { status.textContent = 'Error: ' + d.error; box.innerHTML = ''; return; }
 
-  const folderLabel   = folder === 'all' ? 'all folders' : `Attachments\\${folder}`;
-  const totalCached   = Object.values(d.cache_counts || {}).reduce((a, b) => a + b, 0);
-  const cacheNote     = totalCached === 0
+  const folderLabel = folder === 'all' ? 'all folders' : `Attachments\\${folder}`;
+  const totalCached = Object.values(d.cache_counts || {}).reduce((a, b) => a + b, 0);
+  const cacheNote   = totalCached === 0
     ? ' · Documents not indexed — click Index All Files to enable search'
     : ` · ${totalCached.toLocaleString()} documents indexed`;
   status.textContent = `${d.total.toLocaleString()} match${d.total !== 1 ? 'es' : ''} in ${d.searched.toLocaleString()} files searched (${folderLabel})${cacheNote}`;
 
-  if (!d.results.length) {
-    box.innerHTML = `<div class="text-center text-muted py-4">No files contain <strong>${esc(q)}</strong>.</div>`;
+  _fileResults = d.results || [];
+  renderFileResults();
+}
+
+function renderFileResults() {
+  const box  = document.getElementById('file-results');
+  const sort = document.getElementById('file-sort').value;
+  const q    = document.getElementById('file-search-input').value.trim();
+
+  if (!_fileResults.length) {
+    box.innerHTML = `<div class="text-center text-muted py-4">No files match.</div>`;
     return;
   }
 
+  const sorted = [..._fileResults].sort((a, b) => {
+    if (sort === 'date_desc') return (b.email_date || '') > (a.email_date || '') ? 1 : -1;
+    if (sort === 'date_asc')  return (a.email_date || '') > (b.email_date || '') ? 1 : -1;
+    if (sort === 'name_asc')  return a.filename.localeCompare(b.filename);
+    if (sort === 'name_desc') return b.filename.localeCompare(a.filename);
+    return 0;
+  });
+
   box.innerHTML = '';
-  d.results.forEach(res => {
+  sorted.forEach(res => {
     const rel     = res.folder === '.' ? res.filename : `${res.folder}/${res.filename}`;
     const viewUrl = `/local-file/${encodeURIComponent(rel).replace(/%2F/g,'/')}`;
     const dlUrl   = viewUrl + '?dl=1';
-
-    const card = document.createElement('div');
-    card.className = 'card shadow-sm mb-2';
     const dateHtml = res.email_date
       ? `<span class="text-muted small ms-1"><i class="bi bi-calendar3 me-1"></i>${esc(res.email_date)}</span>`
       : '';
+    const card = document.createElement('div');
+    card.className = 'card shadow-sm mb-2';
     card.innerHTML = `
       <div class="card-body py-2">
         <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
@@ -3581,7 +3608,7 @@ async function searchFiles() {
     card.querySelector('.btn-prev-file').addEventListener('click', () => openPreview(rel, res.filename));
     box.appendChild(card);
   });
-  if (d.total >= 200) {
+  if (_fileResults.length >= 200) {
     box.insertAdjacentHTML('beforeend',
       `<div class="text-center text-muted small py-2">Showing first 200 matches — refine your search to narrow results.</div>`);
   }
