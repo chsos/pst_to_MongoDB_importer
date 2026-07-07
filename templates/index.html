@@ -1617,6 +1617,16 @@
             <i class="bi bi-skip-end me-1"></i>Latest
           </button>
         </div>
+        <div class="input-group input-group-sm" style="width:280px">
+          <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+          <input id="appt-q" type="text" class="form-control"
+                 placeholder="Search subject &amp; body…"
+                 onkeydown="if(event.key==='Enter') apptSearch()">
+          <button class="btn btn-outline-secondary" onclick="apptClearSearch()" title="Clear search">
+            <i class="bi bi-x-lg"></i>
+          </button>
+          <button class="btn btn-primary" onclick="apptSearch()">Search</button>
+        </div>
         <span id="appt-status" class="small text-muted ms-auto"></span>
       </div>
     </div>
@@ -5873,6 +5883,19 @@ let _apptInited = false;
 let _apptView   = 'cal';
 let _apptYear   = 0, _apptMonth = 0;   // month currently shown in the calendar
 let _apptPage   = 1;
+let _apptQ      = '';
+
+function apptSearch() {
+  _apptQ = document.getElementById('appt-q').value.trim();
+  if (_apptView !== 'list') apptSetView('list');   // search results live in the list view
+  else apptLoadList(1);
+}
+
+function apptClearSearch() {
+  _apptQ = '';
+  document.getElementById('appt-q').value = '';
+  if (_apptView === 'list') apptLoadList(1); else apptLoadCal();
+}
 
 async function initApptTab() {
   if (_apptInited) {
@@ -5990,23 +6013,31 @@ async function apptLoadList(page) {
     '<span class="spinner-border spinner-border-sm me-2"></span>Loading…</td></tr>';
   let d = {};
   try {
-    const r = await fetch(`/records?type=appointment&per_page=50&page=${_apptPage}&sort=date&order=-1`);
+    const params = new URLSearchParams({
+      type: 'appointment', per_page: 50, page: _apptPage, sort: 'date', order: -1
+    });
+    if (_apptQ) params.set('q', _apptQ);
+    const r = await fetch('/records?' + params);
     d = await r.json();
   } catch {}
   const total = d.total || 0;
   document.getElementById('appt-status').textContent =
-    `${total.toLocaleString()} appointment${total === 1 ? '' : 's'} total`;
+    `${total.toLocaleString()} appointment${total === 1 ? '' : 's'}` +
+    (_apptQ ? ` matching "${_apptQ}"` : ' total');
   document.getElementById('appt-page-info').textContent = total ? `Page ${d.page} of ${d.pages}` : '';
   document.getElementById('appt-prev').disabled = !total || d.page <= 1;
   document.getElementById('appt-next').disabled = !total || d.page >= d.pages;
   if (!d.rows || !d.rows.length) {
-    tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-4">No appointments found.</td></tr>';
+    tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-4">No appointments found${_apptQ ? ` matching "${esc(_apptQ)}"` : ''}.</td></tr>`;
     return;
   }
   tbody.innerHTML = '';
   d.rows.forEach(row => {
     const who    = row.from_addr || row.sender_name || '';
     const folder = (row.folder_path || '').split('/').slice(-2).join('/');
+    const snippetHtml = row.highlight_html
+      ? `<div class="snippet-row">${row.highlight_html}</div>`
+      : (row.snippet && _apptQ ? `<div class="snippet-row text-muted">${esc(row.snippet)}</div>` : '');
     const tr     = document.createElement('tr');
     tr.className = 'appt-list-row';
     tr.innerHTML = `
@@ -6018,6 +6049,7 @@ async function apptLoadList(page) {
              title="${esc(row.subject)}">
           <i class="bi bi-calendar-event text-secondary me-1"></i>${esc(row.subject)}
         </div>
+        ${snippetHtml}
       </td>
       <td class="text-muted small" style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
           title="${esc(row.folder_path)}">${esc(folder)}</td>`;
