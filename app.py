@@ -769,13 +769,15 @@ def _verify_recaptcha(token: str, min_score: float = 0.5) -> bool:
 @app.route("/sms-authorization", methods=["GET", "POST"])
 def sms_authorization():
     if request.method == "POST":
+        name    = request.form.get("name", "").strip()
         phone   = request.form.get("phone", "").strip()
         consent = request.form.get("consent")
-        if not phone or not consent:
-            flash("Please enter your phone number and check the consent box.", "danger")
+        if not name or not phone or not consent:
+            flash("Please fill in all fields and check the consent box.", "danger")
             return render_template("sms_authorization.html")
         body_plain = (
             f"PSTBrowser Text Alert Subscription\n\n"
+            f"Name:  {name}\n"
             f"Phone: {phone}\n\n"
             f"Consent: Yes, I would like to receive automated text messages from PSTBrowser about account payment activity, "
             f"promotional offers, and important updates. I understand I will receive up to 2 messages per month.\n\n"

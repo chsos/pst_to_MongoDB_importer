@@ -38,6 +38,10 @@
 
     <form method="POST" action="/sms-authorization">
 
+      <div class="mb-3">
+        <label class="form-label fw-semibold">Full Name <span class="text-danger">*</span></label>
+        <input type="text" name="name" class="form-control" placeholder="Your full name" required>
+      </div>
       <div class="mb-4">
         <label class="form-label fw-semibold">Mobile Phone Number <span class="text-danger">*</span></label>
         <input type="tel" name="phone" class="form-control" placeholder="(555) 555-5555" required>
