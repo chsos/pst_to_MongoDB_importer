@@ -3760,6 +3760,11 @@ function renderFileResults() {
     const dateHtml = res.email_date
       ? `<span class="text-muted small ms-1"><i class="bi bi-calendar3 me-1"></i>${esc(res.email_date)}</span>`
       : '';
+    const fromHtml = res.email_id
+      ? `<a href="#" class="file-from-link text-decoration-none small" title="Open source email"
+            style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+           <i class="bi bi-envelope-open me-1"></i>${esc(res.email_from || '(open email)')}</a>`
+      : '';
     const card = document.createElement('div');
     card.className = 'card shadow-sm mb-2';
     card.innerHTML = `
@@ -3767,6 +3772,7 @@ function renderFileResults() {
         <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
           <span class="badge bg-secondary">${esc(res.folder)}</span>
           <span class="fw-semibold small flex-grow-1">${esc(res.filename)}</span>
+          ${fromHtml}
           ${dateHtml}
           <button class="btn btn-sm btn-outline-success border-0 px-1 py-0 btn-prev-file" title="Preview">
             <i class="bi bi-eye"></i>
@@ -3785,6 +3791,11 @@ function renderFileResults() {
         </div>
       </div>`;
     card.querySelector('.btn-prev-file').addEventListener('click', () => openPreview(rel, res.filename));
+    const fromLink = card.querySelector('.file-from-link');
+    if (fromLink) fromLink.addEventListener('click', e => {
+      e.preventDefault();
+      openRecord(res.email_id);
+    });
     box.appendChild(card);
   });
   if (_fileResults.length >= 200) {

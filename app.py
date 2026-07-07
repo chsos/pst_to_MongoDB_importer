@@ -3356,13 +3356,16 @@ def search_files():
                 {"$match": {"attachments.disk_path": {"$in": list(path_to_result.keys())}}},
                 {"$unwind": "$attachments"},
                 {"$match": {"attachments.disk_path": {"$in": list(path_to_result.keys())}}},
-                {"$project": {"_id": 0, "dp": "$attachments.disk_path", "date": "$date"}},
+                {"$project": {"_id": 1, "dp": "$attachments.disk_path", "date": "$date",
+                              "fa": "$from_addr", "sn": "$sender_name"}},
             ], allowDiskUse=True)
             for row in rows:
                 res = path_to_result.get(row.get("dp"))
                 if res and row.get("date") and "email_date" not in res:
                     d = row["date"]
                     res["email_date"] = d.strftime("%Y-%m-%d") if hasattr(d, "strftime") else str(d)
+                    res["email_id"]   = str(row["_id"])
+                    res["email_from"] = row.get("fa") or row.get("sn") or ""
         except Exception:
             pass
 
