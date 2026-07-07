@@ -766,6 +766,41 @@ def _verify_recaptcha(token: str, min_score: float = 0.5) -> bool:
         return False
 
 
+@app.route("/sms-authorization", methods=["GET", "POST"])
+def sms_authorization():
+    if request.method == "POST":
+        name  = request.form.get("name", "").strip()
+        phone = request.form.get("phone", "").strip()
+        consent = request.form.get("consent")
+        if not name or not phone or not consent:
+            flash("Please fill in all fields and check the consent box.", "danger")
+            return render_template("sms_authorization.html")
+        body_plain = (
+            f"SMS Authorization Received\n\n"
+            f"Name:  {name}\n"
+            f"Phone: {phone}\n\n"
+            f"Consent: I consent to receive SMS messages from Paramount Promotions, Inc. at the phone number provided. "
+            f"By checking this box, you agree to receive internal text messages. Consent is a condition of application. "
+            f"Msg & data rates may apply. Reply STOP to unsubscribe."
+        )
+        body_html = (
+            f"<h3>SMS Authorization Received</h3>"
+            f"<p><strong>Name:</strong> {name}<br>"
+            f"<strong>Phone:</strong> {phone}</p>"
+            f"<p><strong>Consent:</strong> I consent to receive SMS messages from Paramount Promotions, Inc. "
+            f"at the phone number provided. By checking this box, you agree to receive internal text messages. "
+            f"Consent is a condition of application. Msg &amp; data rates may apply. Reply STOP to unsubscribe.</p>"
+        )
+        _send_notification_email(
+            "support@pstbrowser.com",
+            f"SMS Authorization — {name}",
+            body_plain, body_html,
+        )
+        flash("Thank you! Your SMS authorization has been submitted.", "success")
+        return render_template("sms_authorization.html")
+    return render_template("sms_authorization.html")
+
+
 @app.route("/privacy")
 def privacy_policy():
     return render_template("privacy.html")
