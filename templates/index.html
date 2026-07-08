@@ -636,7 +636,9 @@
           </button>
         </div>
         <div class="d-flex gap-2 align-items-center mb-2 flex-wrap">
-          <label class="small text-muted mb-0">Email date:</label>
+          <label class="small text-muted mb-0">From email:</label>
+          <input id="file-from-email" type="text" class="form-control form-control-sm" style="max-width:200px" placeholder="sender@example.com">
+          <label class="small text-muted mb-0 ms-2">Email date:</label>
           <input id="file-date-from" type="date" class="form-control form-control-sm" style="max-width:150px" title="From date">
           <span class="text-muted small">to</span>
           <input id="file-date-to" type="date" class="form-control form-control-sm" style="max-width:150px" title="To date">
@@ -3659,20 +3661,22 @@ document.addEventListener('DOMContentLoaded', () => {
 let _fileResults = [];
 
 async function searchFiles() {
-  const q        = document.getElementById('file-search-input').value.trim();
-  const folder   = document.getElementById('file-search-folder').value;
-  const dateFrom = document.getElementById('file-date-from').value;
-  const dateTo   = document.getElementById('file-date-to').value;
-  const status   = document.getElementById('file-search-status');
-  const box      = document.getElementById('file-results');
-  if (!q && !dateFrom && !dateTo) return;
+  const q         = document.getElementById('file-search-input').value.trim();
+  const folder    = document.getElementById('file-search-folder').value;
+  const dateFrom  = document.getElementById('file-date-from').value;
+  const dateTo    = document.getElementById('file-date-to').value;
+  const fromEmail = document.getElementById('file-from-email').value.trim();
+  const status    = document.getElementById('file-search-status');
+  const box       = document.getElementById('file-results');
+  if (!q && !dateFrom && !dateTo && !fromEmail) return;
 
   status.textContent = 'Searching…';
   box.innerHTML = '<div class="text-center text-muted py-4"><span class="spinner-border spinner-border-sm me-2"></span>Searching files…</div>';
 
   const params = new URLSearchParams({ q, folder });
-  if (dateFrom) params.set('date_from', dateFrom);
-  if (dateTo)   params.set('date_to',   dateTo);
+  if (dateFrom)  params.set('date_from',  dateFrom);
+  if (dateTo)    params.set('date_to',    dateTo);
+  if (fromEmail) params.set('from_email', fromEmail);
   const r = await fetch('/search-files?' + params);
   const d = await r.json();
 
@@ -3806,6 +3810,7 @@ function renderFileResults() {
 
 function clearFileSearch() {
   document.getElementById('file-search-input').value = '';
+  document.getElementById('file-from-email').value = '';
   document.getElementById('file-date-from').value = '';
   document.getElementById('file-date-to').value = '';
   document.getElementById('file-search-status').textContent = '';

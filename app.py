@@ -3241,11 +3241,12 @@ def search_files():
     Params: q (required), folder (optional subfolder name or 'all')
     Returns up to 200 matches with filename, folder, and a snippet.
     """
-    q         = request.args.get("q", "").strip()
-    folder    = request.args.get("folder", "all").strip()
-    date_from = request.args.get("date_from", "").strip()
-    date_to   = request.args.get("date_to",   "").strip()
-    if not q and not date_from and not date_to:
+    q          = request.args.get("q",          "").strip()
+    folder     = request.args.get("folder",     "all").strip()
+    date_from  = request.args.get("date_from",  "").strip()
+    date_to    = request.args.get("date_to",    "").strip()
+    from_email = request.args.get("from_email", "").strip().lower()
+    if not q and not date_from and not date_to and not from_email:
         return jsonify({"error": "q is required"}), 400
 
     TEXT_EXTS = {".txt", ".html", ".htm", ".xml", ".json",
@@ -3374,13 +3375,18 @@ def search_files():
         def _in_range(r):
             ed = r.get("email_date")
             if not ed:
-                return False   # no date → exclude when filtering by date
+                return False
             if date_from and ed < date_from:
                 return False
             if date_to   and ed > date_to:
                 return False
             return True
         results = [r for r in results if _in_range(r)]
+
+    # ── 6. Apply from_email filter ───────────────────────────────────────────
+    if from_email:
+        results = [r for r in results
+                   if from_email in (r.get("email_from") or "").lower()]
 
     return jsonify({
         "q":               q,
