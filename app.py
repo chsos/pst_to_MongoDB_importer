@@ -3256,8 +3256,87 @@ def search_files():
     searched = 0
     skipped  = 0
 
-    # ── 1. Search plain-text files ──────────────────────────────────────────
     _ad = get_attach_dir()
+
+    # ── 0. Pre-query MongoDB when filtering by sender ────────────────────────
+    # Build a set of allowed disk_paths. None means no restriction.
+    sender_paths: "set | None" = None
+    if from_email:
+        try:
+            col = get_col()
+            pipeline = [
+                {"$match": {"$or": [
+                    {"sender":       {"$regex": from_email, "$options": "i"}},
+                    {"sender_email": {"$regex": from_email, "$options": "i"}},
+                    {"from_addr":    {"$regex": from_email, "$options": "i"}},
+                ]}},
+                {"$unwind": "$attachments"},
+                {"$match": {"attachments.disk_path": {"$exists": True, "$ne": ""}}},
+                {"$group": {"_id": "$attachments.disk_path"}},
+            ]
+            sender_paths = {doc["_id"] for doc in col.aggregate(pipeline)}
+        except Exception:
+            sender_paths = set()
+
+        # If no keyword and no date, build results directly from sender_paths
+        if not q and not date_from and not date_to:
+            _INTERNAL = {"pdf_text", "word_text", "excel_text", "pptx_text"}
+            for dp in sender_paths:
+                if not os.path.isfile(dp):
+                    continue
+                rel = os.path.relpath(dp, _ad)
+                parts = rel.split(os.sep)
+                if parts[0] in _INTERNAL:
+                    continue
+                fold = parts[0] if len(parts) > 1 else ""
+                if folder != "all" and fold != folder:
+                    continue
+                fname = parts[-1]
+                rel_dir = "/".join(parts[:-1]) if len(parts) > 1 else "."
+                results.append({"folder": rel_dir, "filename": fname, "snippet": None})
+                if len(results) >= 200:
+                    break
+            # Jump straight to enrichment
+            pdf_cache_ready = False
+            cache_counts: dict = {}
+            # fall through to enrich + date filter below
+            col2 = get_col()
+            path_to_result: dict = {}
+            for res in results:
+                disk_path = os.path.join(_ad, res["folder"], res["filename"])
+                path_to_result[disk_path] = res
+            try:
+                rows = col2.aggregate([
+                    {"$match": {"attachments.disk_path": {"$in": list(path_to_result.keys())}}},
+                    {"$unwind": "$attachments"},
+                    {"$match": {"attachments.disk_path": {"$in": list(path_to_result.keys())}}},
+                    {"$project": {"_id": 1, "dp": "$attachments.disk_path", "date": "$date",
+                                  "fa": "$from_addr", "sn": "$sender_name"}},
+                ], allowDiskUse=True)
+                for row in rows:
+                    res = path_to_result.get(row.get("dp"))
+                    if res and row.get("date") and "email_date" not in res:
+                        d = row["date"]
+                        res["email_date"] = d.strftime("%Y-%m-%d") if hasattr(d, "strftime") else str(d)
+                        res["email_id"]   = str(row["_id"])
+                        res["email_from"] = row.get("fa") or row.get("sn") or ""
+            except Exception:
+                pass
+            if date_from or date_to:
+                def _in_range2(r):
+                    ed = r.get("email_date")
+                    if not ed: return False
+                    if date_from and ed < date_from: return False
+                    if date_to   and ed > date_to:   return False
+                    return True
+                results = [r for r in results if _in_range2(r)]
+            return jsonify({
+                "q": q, "folder": folder, "searched": len(sender_paths),
+                "skipped": 0, "total": len(results), "results": results,
+                "pdf_cache_ready": False, "pdf_cache_count": 0, "cache_counts": {},
+            })
+
+    # ── 1. Search plain-text files ──────────────────────────────────────────
     roots = ([_ad] if folder == "all"
              else [os.path.join(_ad, folder)])
 
@@ -3270,13 +3349,16 @@ def search_files():
             if rel_dir.split("/")[0] in _INTERNAL_FOLDERS:
                 continue
             for fname in filenames:
+                fpath = os.path.join(dirpath, fname)
+                if sender_paths is not None and fpath not in sender_paths:
+                    skipped += 1
+                    continue
                 ext = os.path.splitext(fname)[1].lower()
                 if ext not in TEXT_EXTS:
                     skipped += 1
                     continue
                 searched += 1
-                snippet = _search_text_file(
-                    os.path.join(dirpath, fname), q_lower, q)
+                snippet = _search_text_file(fpath, q_lower, q)
                 if snippet is not None:
                     results.append({"folder": rel_dir,
                                     "filename": fname, "snippet": snippet})
