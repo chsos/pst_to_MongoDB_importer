@@ -3413,6 +3413,8 @@ function formatSize(bytes) {
 // ================================================================
 // Upload / Import
 // ================================================================
+let _activeImportEvtSrc = null;  // track so we can close on re-import
+
 const dropZone  = document.getElementById('drop-zone');
 const fileInput = document.getElementById('file-input');
 dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
@@ -3422,6 +3424,7 @@ fileInput.addEventListener('change', () => { if(fileInput.files[0]) startUpload(
 
 async function startUpload(file) {
   if (!file.name.toLowerCase().endsWith('.pst')) { alert('Please select a .pst file.'); return; }
+  if (_activeImportEvtSrc) { _activeImportEvtSrc.close(); _activeImportEvtSrc = null; }
   const logBox   = document.getElementById('log-box');
   const progWrap = document.getElementById('progress-wrap');
   const progLabel= document.getElementById('progress-label');
@@ -3510,13 +3513,14 @@ async function startUpload(file) {
   progLabel.textContent = `Importing ${file.name}…`;
   progBar.className = 'progress-bar progress-bar-striped progress-bar-animated bg-success';
   const evtSrc = new EventSource('/progress/' + data.job_id);
+  _activeImportEvtSrc = evtSrc;
   evtSrc.onmessage = e => {
     const raw = e.data;
     if (raw.startsWith('__DONE__')) {
       const ok = raw.includes('done');
       progBar.className = ok ? 'progress-bar bg-success' : 'progress-bar bg-danger';
       progLabel.textContent = ok ? 'Import complete!' : 'Import finished with errors.';
-      evtSrc.close();
+      evtSrc.close(); _activeImportEvtSrc = null;
       if (ok) {
         // Build the search index next; it will refresh the UI when done
         startIndexBuild();
@@ -3536,7 +3540,7 @@ async function startUpload(file) {
     else if (/ERROR/i.test(line)) cls='log-err';
     appendLog(line, cls);
   };
-  evtSrc.onerror = () => evtSrc.close();
+  evtSrc.onerror = () => { evtSrc.close(); _activeImportEvtSrc = null; };
 }
 
 function appendLog(text, cls='') {
