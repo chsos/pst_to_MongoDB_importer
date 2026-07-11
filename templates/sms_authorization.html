@@ -47,20 +47,22 @@
         <input type="tel" name="phone" class="form-control" placeholder="(555) 555-5555" required>
       </div>
 
-      <div class="mb-4">
+      <div class="mb-3">
         <div class="form-check align-items-start d-flex gap-2">
-          <input class="form-check-input mt-1 flex-shrink-0" type="checkbox" id="sms-consent" name="consent" required>
-          <label class="form-check-label small text-muted" for="sms-consent">
-            Yes, I would like to receive automated text messages from PSTBrowser about account payment activity, promotional offers, and important updates. I understand I will receive up to 2 messages per month.
+          <input class="form-check-input mt-1 flex-shrink-0" type="checkbox" id="terms-consent" name="terms_consent" required>
+          <label class="form-check-label small text-muted" for="terms-consent">
+            I agree to the <a href="/terms" target="_blank">Terms of Service</a> and <a href="/privacy" target="_blank">Privacy Policy</a>. <span class="text-danger">*</span>
           </label>
         </div>
       </div>
 
-      <div class="fine-print mb-4 border rounded p-3 bg-light">
-        <p class="mb-1"><strong>Message Frequency:</strong> You will receive up to 2 messages per month.</p>
-        <p class="mb-1"><strong>Standard Rates:</strong> Message and data rates may apply depending on your mobile phone service plan.</p>
-        <p class="mb-2"><strong>Help &amp; Stop:</strong> Reply HELP for help or STOP to cancel any time.</p>
-        <p class="mb-0">By providing your phone number and checking the box above, you agree to receive text messages from PSTBrowser. Consent is not required to make a purchase. <a href="/terms" target="_blank">Terms of Service</a> &nbsp;|&nbsp; <a href="/privacy" target="_blank">Privacy Policy</a>.</p>
+      <div class="mb-4">
+        <div class="form-check align-items-start d-flex gap-2">
+          <input class="form-check-input mt-1 flex-shrink-0" type="checkbox" id="sms-consent" name="sms_consent">
+          <label class="form-check-label small text-muted" for="sms-consent">
+            I agree to receive recurring promotional text messages from PSTBrowser. Message frequency varies. Msg &amp; data rates may apply. Reply STOP to unsubscribe.
+          </label>
+        </div>
       </div>
 
       <button type="submit" class="btn btn-primary w-100 fw-semibold py-2">

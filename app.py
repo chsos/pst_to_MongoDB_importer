@@ -770,31 +770,28 @@ def _verify_recaptcha(token: str, min_score: float = 0.5) -> bool:
 @app.route("/sms-authorization", methods=["GET", "POST"])
 def sms_authorization():
     if request.method == "POST":
-        name    = request.form.get("name", "").strip()
-        phone   = request.form.get("phone", "").strip()
-        consent = request.form.get("consent")
-        if not name or not phone or not consent:
-            flash("Please fill in all fields and check the consent box.", "danger")
+        name          = request.form.get("name", "").strip()
+        phone         = request.form.get("phone", "").strip()
+        terms_consent = request.form.get("terms_consent")
+        sms_consent   = request.form.get("sms_consent")
+        if not name or not phone or not terms_consent:
+            flash("Please fill in all fields and agree to the Terms of Service.", "danger")
             return render_template("sms_authorization.html")
+        sms_line = ("Yes — agreed to receive recurring promotional texts." if sms_consent
+                    else "No — opted out of promotional texts.")
         body_plain = (
             f"PSTBrowser Text Alert Subscription\n\n"
             f"Name:  {name}\n"
             f"Phone: {phone}\n\n"
-            f"Consent: Yes, I would like to receive automated text messages from PSTBrowser about account payment activity, "
-            f"promotional offers, and important updates. I understand I will receive up to 2 messages per month.\n\n"
-            f"Message Frequency: Up to 2 messages per month.\n"
-            f"Standard Rates: Message and data rates may apply.\n"
-            f"Help & Stop: Reply HELP for help or STOP to cancel any time."
+            f"Terms of Service & Privacy Policy: Agreed\n"
+            f"SMS Marketing Consent: {sms_line}"
         )
         body_html = (
             f"<h3>PSTBrowser Text Alert Subscription</h3>"
-            f"<p><strong>Phone:</strong> {phone}</p>"
-            f"<p><strong>Consent:</strong> Yes, I would like to receive automated text messages from PSTBrowser about "
-            f"account payment activity, promotional offers, and important updates. "
-            f"I understand I will receive up to 2 messages per month.</p>"
-            f"<p><strong>Message Frequency:</strong> Up to 2 messages per month.<br>"
-            f"<strong>Standard Rates:</strong> Message and data rates may apply.<br>"
-            f"<strong>Help &amp; Stop:</strong> Reply HELP for help or STOP to cancel any time.</p>"
+            f"<p><strong>Name:</strong> {name}<br>"
+            f"<strong>Phone:</strong> {phone}</p>"
+            f"<p><strong>Terms of Service &amp; Privacy Policy:</strong> Agreed<br>"
+            f"<strong>SMS Marketing Consent:</strong> {sms_line}</p>"
         )
         _send_notification_email(
             "support@pstbrowser.com",
