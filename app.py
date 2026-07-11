@@ -219,6 +219,7 @@ _PUBLIC_ENDPOINTS = {
     "login_page", "login_local", "register_page", "register_local",
     "auth_google", "auth_google_callback",
     "auth_microsoft", "auth_microsoft_callback",
+    "auth_consent",
     "billing_webhook",   # Stripe must reach this without a session cookie
     "forgot_password",
     "reset_password", "reset_password_submit",
@@ -1223,19 +1224,72 @@ def auth_google_callback():
     users = get_users_col()
     doc   = users.find_one({"_id": email})
     now   = datetime.datetime.utcnow()
-    is_new = doc is None
     if doc:
         users.update_one({"_id": email}, {"$set": {"name": name, "avatar_url": avatar_url, "last_login": now}})
         doc.update({"name": name, "avatar_url": avatar_url})
+        login_user(User(doc), remember=True)
+        return redirect(request.args.get("next") or url_for("index"))
     else:
-        doc = {"_id": email, "email": email, "name": name, "provider": "google",
-               "avatar_url": avatar_url, "created_at": now, "last_login": now}
-        users.insert_one(doc)
-        _send_welcome_email(email, name)
+        session["pending_oauth_user"] = {
+            "email": email, "name": name, "provider": "google", "avatar_url": avatar_url,
+        }
+        return redirect(url_for("auth_consent"))
 
-    login_user(User(doc), remember=True)
-    default = url_for("index") + ("?tab=import" if is_new else "")
-    return redirect(request.args.get("next") or default)
+
+# ── OAuth consent (new users) ─────────────────────────────────────────────────
+
+@app.route("/auth/consent", methods=["GET", "POST"])
+def auth_consent():
+    pending = session.get("pending_oauth_user")
+    if not pending:
+        return redirect(url_for("register_page"))
+    if request.method == "POST":
+        terms_consent = request.form.get("terms_consent")
+        sms_consent   = request.form.get("sms_consent")
+        if not terms_consent:
+            flash("You must agree to the Terms of Service to continue.", "danger")
+            return render_template("oauth_consent.html", name=pending["name"])
+        now = datetime.datetime.utcnow()
+        doc = {
+            "_id":        pending["email"],
+            "email":      pending["email"],
+            "name":       pending["name"],
+            "provider":   pending["provider"],
+            "avatar_url": pending.get("avatar_url", ""),
+            "created_at": now,
+            "last_login": now,
+            "sms_consent": bool(sms_consent),
+        }
+        get_users_col().insert_one(doc)
+        session.pop("pending_oauth_user", None)
+        login_user(User(doc), remember=True)
+        _send_welcome_email(pending["email"], pending["name"])
+        if sms_consent:
+            sms_line = ("Yes — agreed to receive recurring promotional texts:\n"
+                        "You've subscribed to PSTBrowser - msgs. Msg & data rates may apply. "
+                        "Msgs are recurring. Reply STOP to unsubscribe, HELP for help")
+            body_plain = (
+                f"PSTBrowser Text Alert Subscription (via {pending['provider']} registration)\n\n"
+                f"Name:  {pending['name']}\n"
+                f"Email: {pending['email']}\n\n"
+                f"Terms of Service & Privacy Policy: Agreed\n"
+                f"SMS Marketing Consent: {sms_line}"
+            )
+            body_html = (
+                f"<h3>PSTBrowser Text Alert Subscription (via {pending['provider']} registration)</h3>"
+                f"<p><strong>Name:</strong> {pending['name']}<br>"
+                f"<strong>Email:</strong> {pending['email']}</p>"
+                f"<p><strong>Terms of Service &amp; Privacy Policy:</strong> Agreed<br>"
+                f"<strong>SMS Marketing Consent:</strong> {sms_line.replace(chr(10), '<br>')}</p>"
+            )
+            _send_notification_email(
+                "support@pstbrowser.com",
+                f"Text Alert Subscription ({pending['provider']} registration) — {pending['email']}",
+                body_plain, body_html,
+            )
+        flash(f"Welcome, {pending['name']}! Your account has been created.", "success")
+        return redirect(url_for("index") + "?tab=import")
+    return render_template("oauth_consent.html", name=pending["name"])
 
 
 # ── Microsoft OAuth ───────────────────────────────────────────────────────────
@@ -1277,19 +1331,16 @@ def auth_microsoft_callback():
     users = get_users_col()
     doc   = users.find_one({"_id": email})
     now   = datetime.datetime.utcnow()
-    is_new = doc is None
     if doc:
         users.update_one({"_id": email}, {"$set": {"name": name, "last_login": now}})
         doc.update({"name": name})
+        login_user(User(doc), remember=True)
+        return redirect(request.args.get("next") or url_for("index"))
     else:
-        doc = {"_id": email, "email": email, "name": name, "provider": "microsoft",
-               "avatar_url": avatar_url, "created_at": now, "last_login": now}
-        users.insert_one(doc)
-        _send_welcome_email(email, name)
-
-    login_user(User(doc), remember=True)
-    default = url_for("index") + ("?tab=import" if is_new else "")
-    return redirect(request.args.get("next") or default)
+        session["pending_oauth_user"] = {
+            "email": email, "name": name, "provider": "microsoft", "avatar_url": avatar_url,
+        }
+        return redirect(url_for("auth_consent"))
 
 
 # ---------------------------------------------------------------------------
