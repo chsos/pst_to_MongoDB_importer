@@ -965,11 +965,13 @@ def register_local():
     if not _verify_recaptcha(request.form.get("g-recaptcha-response", "")):
         flash("Please complete the CAPTCHA.", "danger")
         return redirect(url_for("register_page"))
-    name     = (request.form.get("name")     or "").strip()
-    email    = (request.form.get("email")    or "").strip().lower()
-    password = (request.form.get("password") or "").strip()
-    if not email or not password or not name:
-        flash("All fields are required.", "danger")
+    name          = (request.form.get("name")     or "").strip()
+    email         = (request.form.get("email")    or "").strip().lower()
+    password      = (request.form.get("password") or "").strip()
+    terms_consent = request.form.get("terms_consent")
+    sms_consent   = request.form.get("sms_consent")
+    if not email or not password or not name or not terms_consent:
+        flash("All fields are required and you must agree to the Terms of Service.", "danger")
         return redirect(url_for("register_page"))
     if len(password) < 8:
         flash("Password must be at least 8 characters.", "danger")
@@ -988,10 +990,34 @@ def register_local():
         "avatar_url":    "",
         "created_at":    datetime.datetime.utcnow(),
         "last_login":    datetime.datetime.utcnow(),
+        "sms_consent":   bool(sms_consent),
     }
     users.insert_one(doc)
     login_user(User(doc), remember=True)
     _send_welcome_email(email, name)
+    if sms_consent:
+        sms_line = ("Yes — agreed to receive recurring promotional texts:\n"
+                    "You've subscribed to PSTBrowser - msgs. Msg & data rates may apply. "
+                    "Msgs are recurring. Reply STOP to unsubscribe, HELP for help")
+        body_plain = (
+            f"PSTBrowser Text Alert Subscription (via registration)\n\n"
+            f"Name:  {name}\n"
+            f"Email: {email}\n\n"
+            f"Terms of Service & Privacy Policy: Agreed\n"
+            f"SMS Marketing Consent: {sms_line}"
+        )
+        body_html = (
+            f"<h3>PSTBrowser Text Alert Subscription (via registration)</h3>"
+            f"<p><strong>Name:</strong> {name}<br>"
+            f"<strong>Email:</strong> {email}</p>"
+            f"<p><strong>Terms of Service &amp; Privacy Policy:</strong> Agreed<br>"
+            f"<strong>SMS Marketing Consent:</strong> {sms_line.replace(chr(10), '<br>')}</p>"
+        )
+        _send_notification_email(
+            "support@pstbrowser.com",
+            f"Text Alert Subscription (registration) — {email}",
+            body_plain, body_html,
+        )
     flash(f"Welcome, {name}! Your account has been created.", "success")
     return redirect(url_for("index") + "?tab=import")
 
