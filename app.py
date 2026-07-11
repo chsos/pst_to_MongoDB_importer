@@ -777,8 +777,10 @@ def sms_authorization():
         if not name or not phone or not terms_consent:
             flash("Please fill in all fields and agree to the Terms of Service.", "danger")
             return render_template("sms_authorization.html")
-        sms_line = ("Yes — agreed to receive recurring promotional texts." if sms_consent
-                    else "No — opted out of promotional texts.")
+        sms_line = ("Yes — agreed to receive recurring promotional texts:\n"
+                    "You've subscribed to PSTBrowser - msgs. Msg & data rates may apply. "
+                    "Msgs are recurring. Reply STOP to unsubscribe, HELP for help"
+                    if sms_consent else "No — opted out of promotional texts.")
         body_plain = (
             f"PSTBrowser Text Alert Subscription\n\n"
             f"Name:  {name}\n"
@@ -791,7 +793,7 @@ def sms_authorization():
             f"<p><strong>Name:</strong> {name}<br>"
             f"<strong>Phone:</strong> {phone}</p>"
             f"<p><strong>Terms of Service &amp; Privacy Policy:</strong> Agreed<br>"
-            f"<strong>SMS Marketing Consent:</strong> {sms_line}</p>"
+            f"<strong>SMS Marketing Consent:</strong> {sms_line.replace(chr(10), '<br>')}</p>"
         )
         _send_notification_email(
             "support@pstbrowser.com",
