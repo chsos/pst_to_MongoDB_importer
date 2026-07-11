@@ -801,7 +801,7 @@ def sms_authorization():
         if sms_consent:
             flash("Thank you! You have been signed up for PSTBrowser text alerts.", "success")
         else:
-            flash("Thank you! You have NOT been signed up for PSTBrowser text alerts.", "success")
+            flash("Thank you! You HAVE agreed to the terms of service. You have NOT been signed up for PSTBrowser text alerts.", "success")
         return render_template("sms_authorization.html")
     return render_template("sms_authorization.html")
 
