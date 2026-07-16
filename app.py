@@ -3889,6 +3889,45 @@ def list_files():
     })
 
 
+@app.route("/download-selected", methods=["POST"])
+def download_selected():
+    """Stream a ZIP of selected attachment files given as relative paths."""
+    import zipfile
+    _ad      = get_attach_dir()
+    safe_base = os.path.realpath(_ad)
+    data      = request.get_json(force=True)
+    rel_paths = data.get("paths", [])
+    if not rel_paths:
+        return jsonify({"error": "No files selected"}), 400
+
+    def generate():
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            for rel in rel_paths:
+                target = os.path.realpath(os.path.join(_ad, rel))
+                if not (target == safe_base or target.startswith(safe_base + os.sep)):
+                    continue
+                if not os.path.isfile(target):
+                    continue
+                arcname = rel.replace("\\", "/")
+                try:
+                    zf.write(target, arcname)
+                except Exception:
+                    pass
+        buf.seek(0)
+        while True:
+            chunk = buf.read(65_536)
+            if not chunk:
+                break
+            yield chunk
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="selected_files.zip"'},
+    )
+
+
 @app.route("/local-file/<path:rel_path>")
 def local_file(rel_path):
     """
