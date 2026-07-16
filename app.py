@@ -3985,36 +3985,67 @@ def _attachment_filter_paths(date_from: str, date_to: str, sender: str, keyword:
     if not keyword:
         return paths
 
-    # Further filter by keyword: check file content
+    # Further filter by keyword: check file content using the same cache approach as search_files
     TEXT_EXTS = {".txt", ".html", ".htm", ".xml", ".json", ".log", ".csv", ".tsv", ".md", ".ini"}
     kw = keyword.lower()
     _ad = get_attach_dir()
-    pdf_cache_col = get_db()["pdf_text"]
     matched: set = set()
 
-    candidate_paths = paths if paths else set()
-    if not paths and keyword:
-        # keyword-only: walk all files
-        for dirpath, _, filenames in os.walk(_ad):
-            for fname in filenames:
-                candidate_paths.add(os.path.join(dirpath, fname))  # type: ignore[union-attr]
+    CACHES = [
+        (get_pdf_text_dir,   "pdf",        ".pdf"),
+        (get_word_text_dir,  "Word",       ".docx"),
+        (get_excel_text_dir, "Excel",      ".xlsx"),
+        (get_pptx_text_dir,  "PowerPoint", ".pptx"),
+    ]
 
-    for fpath in candidate_paths:
-        if not os.path.isfile(fpath):
+    # Build a set of allowed real-file paths from keyword search across caches
+    for cache_dir_fn, real_folder, orig_ext in CACHES:
+        cache_dir = cache_dir_fn()
+        if not os.path.isdir(cache_dir):
             continue
-        ext = os.path.splitext(fpath)[1].lower()
-        try:
-            if ext == ".pdf":
-                cached = pdf_cache_col.find_one({"_id": fpath}, {"text": 1})
-                if cached and kw in (cached.get("text") or "").lower():
-                    matched.add(fpath)
-            elif ext in TEXT_EXTS:
+        for cache_fname in os.listdir(cache_dir):
+            if not cache_fname.lower().endswith(".txt"):
+                continue
+            cache_path = os.path.join(cache_dir, cache_fname)
+            try:
+                with open(cache_path, "r", encoding="utf-8", errors="ignore") as fh:
+                    if kw not in fh.read().lower():
+                        continue
+            except Exception:
+                continue
+            base      = os.path.splitext(cache_fname)[0]
+            orig_fname = base + orig_ext
+            real_path  = os.path.join(_ad, real_folder, orig_fname)
+            if not os.path.isfile(real_path):
+                # fallback: find by base name
+                folder_dir = os.path.join(_ad, real_folder)
+                if os.path.isdir(folder_dir):
+                    for f in os.listdir(folder_dir):
+                        if os.path.splitext(f)[0] == base:
+                            real_path = os.path.join(folder_dir, f)
+                            break
+            if os.path.isfile(real_path):
+                matched.add(real_path)
+
+    # Also search plain-text files
+    for dirpath, _, filenames in os.walk(_ad):
+        rel = os.path.relpath(dirpath, _ad)
+        if rel.split(os.sep)[0] in _INTERNAL_FOLDERS:
+            continue
+        for fname in filenames:
+            if os.path.splitext(fname)[1].lower() not in TEXT_EXTS:
+                continue
+            fpath = os.path.join(dirpath, fname)
+            try:
                 with open(fpath, "r", encoding="utf-8", errors="ignore") as fh:
                     if kw in fh.read().lower():
                         matched.add(fpath)
-        except Exception:
-            pass
+            except Exception:
+                pass
 
+    # Intersect with date/sender results if those filters were active
+    if paths:
+        return matched & paths
     return matched
 
 
