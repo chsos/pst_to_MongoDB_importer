@@ -889,6 +889,37 @@ def admin_accounts():
     return render_template("admin_accounts.html", users=users)
 
 
+@app.route("/admin/accounts/delete", methods=["POST"])
+def admin_delete_account():
+    if not (current_user.is_authenticated and current_user.email.lower() in {e.lower() for e in ADMIN_EMAILS}):
+        return jsonify({"error": "Forbidden"}), 403
+    data  = request.get_json(force=True)
+    email = (data.get("email") or "").strip().lower()
+    if not email:
+        return jsonify({"error": "Email required"}), 400
+    if email in {e.lower() for e in ADMIN_EMAILS}:
+        return jsonify({"error": "Cannot delete an admin account"}), 400
+
+    client = _get_client()
+
+    # Drop the user's email database
+    safe = _re_module.sub(r"[^a-z0-9]", "_", email).strip("_")
+    db_name = f"pst_emails_{safe}"
+    client.drop_database(db_name)
+
+    # Delete upload and attachment files
+    import shutil
+    for base_dir in (UPLOAD_DIR, ATTACH_DIR):
+        user_dir = os.path.join(base_dir, safe)
+        if os.path.isdir(user_dir):
+            shutil.rmtree(user_dir, ignore_errors=True)
+
+    # Remove user document
+    get_users_col().delete_one({"_id": email})
+
+    return jsonify({"ok": True})
+
+
 @app.route("/admin/suggestions")
 def admin_suggestions():
     if not (current_user.is_authenticated and current_user.email.lower() in {e.lower() for e in ADMIN_EMAILS}):
