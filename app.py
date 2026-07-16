@@ -440,12 +440,18 @@ def _apply_stripe_subscription(customer_id: str, subscription):
         (k for k, v in PLANS.items() if v.get("price_id") and v["price_id"] == price_id),
         "free",
     )
+    def _sattr(obj, key, default=None):
+        try:
+            return obj[key]
+        except (KeyError, TypeError):
+            return default
+
     users.update_one(
         {"stripe_customer_id": customer_id},
         {"$set": {
             "plan":                    plan_name,
-            "plan_status":             subscription.get("status", "active"),
-            "stripe_subscription_id":  subscription.get("id"),
+            "plan_status":             _sattr(subscription, "status", "active"),
+            "stripe_subscription_id":  _sattr(subscription, "id"),
         }},
     )
 
