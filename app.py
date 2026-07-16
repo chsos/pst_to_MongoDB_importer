@@ -3953,9 +3953,9 @@ def clear_files():
     return jsonify({"deleted": deleted, "errors": errors})
 
 
-def _attachment_filter_paths(date_from: str, date_to: str, sender: str) -> "set | None":
+def _attachment_filter_paths(date_from: str, date_to: str, sender: str, keyword: str = "") -> "set | None":
     """Return a set of disk_paths matching the given filters, or None if no filters active."""
-    if not date_from and not date_to and not sender:
+    if not date_from and not date_to and not sender and not keyword:
         return None
     coll = get_col()
     match: dict = {}
@@ -3980,7 +3980,42 @@ def _attachment_filter_paths(date_from: str, date_to: str, sender: str) -> "set 
         {"$match": {"attachments.disk_path": {"$exists": True, "$ne": ""}}},
         {"$group": {"_id": "$attachments.disk_path"}},
     ]
-    return {doc["_id"] for doc in coll.aggregate(pipeline)}
+    paths = {doc["_id"] for doc in coll.aggregate(pipeline)}
+
+    if not keyword:
+        return paths
+
+    # Further filter by keyword: check file content
+    TEXT_EXTS = {".txt", ".html", ".htm", ".xml", ".json", ".log", ".csv", ".tsv", ".md", ".ini"}
+    kw = keyword.lower()
+    _ad = get_attach_dir()
+    pdf_cache_col = get_db()["pdf_text"]
+    matched: set = set()
+
+    candidate_paths = paths if paths else set()
+    if not paths and keyword:
+        # keyword-only: walk all files
+        for dirpath, _, filenames in os.walk(_ad):
+            for fname in filenames:
+                candidate_paths.add(os.path.join(dirpath, fname))  # type: ignore[union-attr]
+
+    for fpath in candidate_paths:
+        if not os.path.isfile(fpath):
+            continue
+        ext = os.path.splitext(fpath)[1].lower()
+        try:
+            if ext == ".pdf":
+                cached = pdf_cache_col.find_one({"_id": fpath}, {"text": 1})
+                if cached and kw in (cached.get("text") or "").lower():
+                    matched.add(fpath)
+            elif ext in TEXT_EXTS:
+                with open(fpath, "r", encoding="utf-8", errors="ignore") as fh:
+                    if kw in fh.read().lower():
+                        matched.add(fpath)
+        except Exception:
+            pass
+
+    return matched
 
 
 @app.route("/export-info")
@@ -3991,9 +4026,10 @@ def export_info():
     date_from = request.args.get("date_from", "").strip()
     date_to   = request.args.get("date_to",   "").strip()
     sender    = request.args.get("sender",    "").strip()
+    keyword   = request.args.get("keyword",   "").strip()
     roots     = ([_ad] if not folders or "all" in folders
                  else [os.path.join(_ad, f) for f in folders])
-    allowed   = _attachment_filter_paths(date_from, date_to, sender)
+    allowed   = _attachment_filter_paths(date_from, date_to, sender, keyword)
     total_files = 0
     total_bytes = 0
     for root in roots:
@@ -4024,9 +4060,10 @@ def export_zip():
     date_from = request.args.get("date_from", "").strip()
     date_to   = request.args.get("date_to",   "").strip()
     sender    = request.args.get("sender",    "").strip()
+    keyword   = request.args.get("keyword",   "").strip()
     roots     = ([_ad] if not folders or "all" in folders
                  else [os.path.join(_ad, f) for f in folders])
-    allowed   = _attachment_filter_paths(date_from, date_to, sender)
+    allowed   = _attachment_filter_paths(date_from, date_to, sender, keyword)
 
     def generate():
         buf = io.BytesIO()

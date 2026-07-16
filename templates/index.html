@@ -1692,6 +1692,10 @@
         <!-- Filters -->
         <div class="row g-2 mb-2">
           <div class="col-md-4">
+            <label class="form-label small fw-semibold mb-1">Search phrase</label>
+            <input type="text" id="exd-keyword" class="form-control form-control-sm" placeholder="e.g. invoice">
+          </div>
+          <div class="col-md-4">
             <label class="form-label small fw-semibold mb-1">Quick date range</label>
             <select id="exd-date-preset" class="form-select form-select-sm" onchange="exdApplyPreset()">
               <option value="">— custom —</option>
@@ -1706,6 +1710,7 @@
             </select>
           </div>
         </div>
+
         <div class="row g-2 mb-3">
           <div class="col-md-4">
             <label class="form-label small fw-semibold mb-1">Email date from</label>
@@ -6214,9 +6219,11 @@ function _exdBuildParams() {
   const dateFrom  = document.getElementById('exd-date-from').value;
   const dateTo    = document.getElementById('exd-date-to').value;
   const sender    = document.getElementById('exd-sender').value.trim();
+  const keyword   = document.getElementById('exd-keyword').value.trim();
   if (dateFrom) params.set('date_from', dateFrom);
   if (dateTo)   params.set('date_to',   dateTo);
   if (sender)   params.set('sender',    sender);
+  if (keyword)  params.set('keyword',   keyword);
   return { folders, params };
 }
 
