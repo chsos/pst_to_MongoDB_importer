@@ -768,6 +768,10 @@
               </button>
             </div>
             <span id="browse-search-status" class="small text-muted"></span>
+            <button id="browse-search-dl-btn" class="btn btn-sm btn-success d-none"
+                    onclick="downloadBrowseSearchResults()">
+              <i class="bi bi-download me-1"></i>Download results as ZIP
+            </button>
           </div>
         </div>
       </div>
@@ -4672,6 +4676,15 @@ async function searchBrowseFiles() {
       tbody.appendChild(tr);
     });
 
+    // Show download button for search results
+    const dlBtn = document.getElementById('browse-search-dl-btn');
+    if (d.results.length) {
+      dlBtn._paths = d.results.map(r => r.folder === '.' ? r.filename : `${r.folder}/${r.filename}`);
+      dlBtn.classList.remove('d-none');
+    } else {
+      dlBtn.classList.add('d-none');
+    }
+
     if (d.total >= 200) {
       tbody.insertAdjacentHTML('beforeend',
         `<tr><td colspan="6" class="text-center text-muted small py-2">` +
@@ -4686,7 +4699,34 @@ function clearBrowseSearch() {
   _browseSearchActive = false;
   document.getElementById('browse-search-input').value = '';
   document.getElementById('browse-search-status').textContent = '';
+  document.getElementById('browse-search-dl-btn').classList.add('d-none');
   loadBrowseFiles();   // restore normal file listing
+}
+
+async function downloadBrowseSearchResults() {
+  const btn = document.getElementById('browse-search-dl-btn');
+  const paths = btn._paths || [];
+  if (!paths.length) { alert('No files to download.'); return; }
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Preparing…';
+  try {
+    const r = await fetch('/download-selected', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({paths})
+    });
+    if (!r.ok) { alert('Download failed.'); return; }
+    const blob = await r.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'search_results.zip';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  } catch(e) { alert('Error: ' + e); }
+  finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-download me-1"></i>Download results as ZIP';
+  }
 }
 
 // ================================================================
