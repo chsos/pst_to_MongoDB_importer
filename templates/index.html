@@ -742,6 +742,19 @@
                     onchange="onBrowseFolderChange()">
               <option value="all">All folders</option>
             </select>
+            <div class="input-group input-group-sm ms-2" style="max-width:260px">
+              <span class="input-group-text bg-white"><i class="bi bi-funnel text-muted"></i></span>
+              <input id="browse-filter-input" type="text" class="form-control"
+                     placeholder="Filter by filename…" oninput="applyBrowseFilter()">
+              <button class="btn btn-outline-secondary btn-sm" onclick="clearBrowseFilter()" title="Clear filter">
+                <i class="bi bi-x-lg"></i>
+              </button>
+            </div>
+            <span id="browse-filter-count" class="small text-muted"></span>
+            <button id="browse-download-filtered-btn" class="btn btn-sm btn-success d-none"
+                    onclick="downloadBrowseFiltered()">
+              <i class="bi bi-download me-1"></i>Download filtered as ZIP
+            </button>
             <span id="browse-status" class="small text-muted ms-auto"></span>
           </div>
           <div class="d-flex align-items-center gap-2 flex-wrap">
@@ -4932,17 +4945,79 @@ function _updateBrowseHeaders() {
   });
 }
 
+let _browseFilterTerm = '';
+
+function applyBrowseFilter() {
+  _browseFilterTerm = document.getElementById('browse-filter-input').value.trim().toLowerCase();
+  renderBrowseTable();
+}
+
+function clearBrowseFilter() {
+  _browseFilterTerm = '';
+  document.getElementById('browse-filter-input').value = '';
+  document.getElementById('browse-filter-count').textContent = '';
+  document.getElementById('browse-download-filtered-btn').classList.add('d-none');
+  renderBrowseTable();
+}
+
+async function downloadBrowseFiltered() {
+  const filtered = _browseFilterTerm
+    ? _browseData.filter(f => (f.filename + ' ' + (f.email_from || '') + ' ' + f.folder)
+        .toLowerCase().includes(_browseFilterTerm))
+    : _browseData;
+  if (!filtered.length) { alert('No files to download.'); return; }
+  const paths = filtered.map(f => f.folder === '.' ? f.filename : `${f.folder}/${f.filename}`);
+  const btn = document.getElementById('browse-download-filtered-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Preparing…';
+  try {
+    const r = await fetch('/download-selected', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({paths})
+    });
+    if (!r.ok) { alert('Download failed.'); return; }
+    const blob = await r.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'filtered_files.zip';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  } catch(e) { alert('Error: ' + e); }
+  finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-download me-1"></i>Download filtered as ZIP';
+  }
+}
+
 function renderBrowseTable() {
   const tbody = document.getElementById('browse-tbody');
   _updateBrowseHeaders();
 
-  if (!_browseData.length) {
-    tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">No files found.</td></tr>';
+  const filtered = _browseFilterTerm
+    ? _browseData.filter(f => (f.filename + ' ' + (f.email_from || '') + ' ' + f.folder)
+        .toLowerCase().includes(_browseFilterTerm))
+    : _browseData;
+
+  const countEl  = document.getElementById('browse-filter-count');
+  const dlBtn    = document.getElementById('browse-download-filtered-btn');
+  if (_browseFilterTerm) {
+    countEl.textContent = `${filtered.length.toLocaleString()} of ${_browseData.length.toLocaleString()} shown`;
+    dlBtn.classList.toggle('d-none', filtered.length === 0);
+  } else {
+    countEl.textContent = '';
+    dlBtn.classList.add('d-none');
+  }
+
+  if (!filtered.length) {
+    tbody.innerHTML = _browseFilterTerm
+      ? `<tr><td colspan="6" class="text-center text-muted py-4">No files match <strong>${esc(_browseFilterTerm)}</strong>.</td></tr>`
+      : '<tr><td colspan="6" class="text-center text-muted py-4">No files found.</td></tr>';
     return;
   }
 
   tbody.innerHTML = '';
-  _browseData.forEach(f => {
+  filtered.forEach(f => {
     // Build URL-safe relative path (forward slashes, skip leading './')
     const rel = f.folder === '.' ? f.filename : `${f.folder}/${f.filename}`;
     const viewUrl = `/local-file/${encodeURIComponent(rel).replace(/%2F/g,'/')}`;
