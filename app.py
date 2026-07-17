@@ -224,6 +224,7 @@ _PUBLIC_ENDPOINTS = {
     "forgot_password",
     "reset_password", "reset_password_submit",
     "static",
+    "sitemap", "robots",
     "privacy_policy", "terms_of_service",
     "process_flow", "process_status",
 }
@@ -1383,6 +1384,15 @@ def auth_microsoft_callback():
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
+
+@app.route("/sitemap.xml")
+def sitemap():
+    return app.send_static_file("sitemap.xml"), 200, {"Content-Type": "application/xml"}
+
+@app.route("/robots.txt")
+def robots():
+    return ("User-agent: *\nAllow: /\nSitemap: https://pstbrowser.com/sitemap.xml\n",
+            200, {"Content-Type": "text/plain"})
 
 @app.route("/landing")
 def landing():
