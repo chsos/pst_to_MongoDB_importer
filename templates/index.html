@@ -6947,12 +6947,41 @@ async function loadVolumeChart() {
         responsive: true, maintainAspectRatio: false,
         plugins: {
           legend: { display: false },
-          tooltip: { callbacks: { label: c => ' ' + c.parsed.y.toLocaleString() + ' emails' } },
+          tooltip: { callbacks: { label: c => ' ' + c.parsed.y.toLocaleString() + ' emails — click to view' } },
         },
         scales: {
           y: { beginAtZero: true, ticks: { callback: v => v.toLocaleString() },
                grid: { color: '#f0f1f5' } },
           x: { grid: { display: false } },
+        },
+        onClick: (evt, elements) => {
+          if (!elements.length) return;
+          const label = d.labels[elements[0].index]; // e.g. "2016" or "2016-03"
+          let dateFrom, dateTo;
+          if (/^\d{4}$/.test(label)) {
+            // Year granularity
+            dateFrom = `${label}-01-01`;
+            dateTo   = `${label}-12-31`;
+          } else if (/^\d{4}-\d{2}$/.test(label)) {
+            // Month granularity
+            const [yy, mm] = label.split('-').map(Number);
+            const lastDay = new Date(yy, mm, 0).getDate();
+            dateFrom = `${label}-01`;
+            dateTo   = `${label}-${String(lastDay).padStart(2,'0')}`;
+          } else {
+            return;
+          }
+          document.getElementById('date-from').value = dateFrom;
+          document.getElementById('date-to').value   = dateTo;
+          st.dateFrom = dateFrom;
+          st.dateTo   = dateTo;
+          st.q = '';
+          document.getElementById('search-input').value = '';
+          showTab('all');
+          loadRecords(1);
+        },
+        onHover: (evt, elements) => {
+          canvas.style.cursor = elements.length ? 'pointer' : 'default';
         },
       },
     });
