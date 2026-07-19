@@ -5202,8 +5202,10 @@ async function initBrowseTab() {
     _browseInited = true;
   }
   renderSavedSearches();
-  // Load files (all folders, newest first)
-  await loadBrowseFiles();
+  // Skip disk file loading when in MongoDB attachment mode
+  if (!_browseMongoExt) {
+    await loadBrowseFiles();
+  }
 }
 
 async function loadBrowseFiles() {
