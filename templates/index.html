@@ -7026,7 +7026,7 @@ async function loadSendersChart() {
           tooltip: {
             callbacks: {
               title: items => d.labels[items[0].dataIndex],
-              label:  c => ' ' + c.parsed.x.toLocaleString() + ' emails',
+              label:  c => ' ' + c.parsed.x.toLocaleString() + ' emails — click to view',
             },
           },
         },
@@ -7034,6 +7034,27 @@ async function loadSendersChart() {
           x: { beginAtZero: true, ticks: { callback: v => v.toLocaleString() },
                grid: { color: '#f0f1f5' } },
           y: { ticks: { font: { size: 11 } }, grid: { display: false } },
+        },
+        onClick: (evt, elements) => {
+          if (!elements.length) return;
+          const sender = d.labels[elements[0].index];
+          st.fromAddr = sender;
+          st.q = '';
+          st.dateFrom = ''; st.dateTo = '';
+          document.getElementById('search-input').value = '';
+          document.getElementById('date-from').value = '';
+          document.getElementById('date-to').value   = '';
+          const filterBar  = document.getElementById('active-filter-bar');
+          const filterText = document.getElementById('active-filter-text');
+          if (filterBar && filterText) {
+            filterText.textContent = `From: ${sender}`;
+            filterBar.style.removeProperty('display');
+          }
+          showTab('all');
+          loadRecords(1);
+        },
+        onHover: (evt, elements) => {
+          canvas.style.cursor = elements.length ? 'pointer' : 'default';
         },
       },
     });
