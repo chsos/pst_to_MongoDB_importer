@@ -362,11 +362,28 @@
         <!-- Date range + search controls row -->
         <div class="d-flex align-items-center gap-2 flex-wrap">
           <span class="small text-muted"><i class="bi bi-calendar-range me-1"></i>Date range</span>
-          <input id="date-from" type="date" class="form-control form-control-sm" style="width:145px">
+          <select id="all-date-preset" class="form-select form-select-sm" style="max-width:140px"
+                  onchange="allApplyDatePreset()">
+            <option value="">Quick range…</option>
+            <option value="this_week">This week</option>
+            <option value="last_week">Last week</option>
+            <option value="this_month">This month</option>
+            <option value="last_month">Last month</option>
+            <option value="this_quarter">This quarter</option>
+            <option value="last_quarter">Last quarter</option>
+            <option value="this_year">This year</option>
+            <option value="last_year">Last year</option>
+          </select>
+          <input id="date-from" type="date" class="form-control form-control-sm" style="width:145px"
+                 oninput="document.getElementById('all-date-preset').value=''">
           <span class="small text-muted">to</span>
-          <input id="date-to"   type="date" class="form-control form-control-sm" style="width:145px">
+          <input id="date-to"   type="date" class="form-control form-control-sm" style="width:145px"
+                 oninput="document.getElementById('all-date-preset').value=''">
           <button class="btn btn-sm btn-outline-secondary" onclick="clearDates()" title="Clear dates">
             <i class="bi bi-x"></i>
+          </button>
+          <button class="btn btn-sm btn-outline-success ms-1" id="all-csv-btn" onclick="exportAllCsv()" title="Export results as CSV">
+            <i class="bi bi-filetype-csv me-1"></i>Export CSV
           </button>
           <!-- Fuzzy toggle (shown only when Atlas Search is active) -->
           <div id="fuzzy-wrap" class="form-check form-check-inline mb-0 ms-1" style="display:none!important">
@@ -742,6 +759,17 @@
                     onchange="onBrowseFolderChange()">
               <option value="all">All folders</option>
             </select>
+            <select id="browse-type-filter" class="form-select form-select-sm" style="max-width:130px"
+                    onchange="applyBrowseFilter()" title="Filter by file type">
+              <option value="">All types</option>
+              <option value="pdf">PDF</option>
+              <option value="doc">Word</option>
+              <option value="xls">Excel</option>
+              <option value="ppt">PowerPoint</option>
+              <option value="txt">Text</option>
+              <option value="jpg">Images</option>
+              <option value="zip">Archives</option>
+            </select>
             <div class="input-group input-group-sm ms-1" style="max-width:220px">
               <span class="input-group-text bg-white"><i class="bi bi-funnel text-muted"></i></span>
               <input id="browse-filter-input" type="text" class="form-control"
@@ -789,6 +817,14 @@
                     onclick="downloadBrowseSearchResults()">
               <i class="bi bi-download me-1"></i>Download results as ZIP
             </button>
+            <button class="btn btn-sm btn-outline-secondary" onclick="saveCurrentSearch()" title="Save this search">
+              <i class="bi bi-bookmark-plus"></i>
+            </button>
+          </div>
+          <!-- Saved searches -->
+          <div id="saved-searches-bar" class="mt-2" style="display:none">
+            <span class="small text-muted me-1"><i class="bi bi-bookmarks me-1"></i>Saved:</span>
+            <span id="saved-searches-chips"></span>
           </div>
         </div>
       </div>
@@ -2091,28 +2127,40 @@
 
     <!-- Summary stat chips -->
     <div class="row g-3 mb-4" id="dash-stat-row">
-      <div class="col-6 col-md-3">
+      <div class="col-6 col-md-2">
         <div class="card shadow-sm text-center py-3">
           <div class="fs-4 fw-bold text-primary" id="dash-total-emails">—</div>
           <div class="small text-muted">Total emails</div>
         </div>
       </div>
-      <div class="col-6 col-md-3">
+      <div class="col-6 col-md-2">
         <div class="card shadow-sm text-center py-3">
           <div class="fs-4 fw-bold text-success" id="dash-unique-senders">—</div>
           <div class="small text-muted">Unique senders</div>
         </div>
       </div>
-      <div class="col-6 col-md-3">
+      <div class="col-6 col-md-2">
         <div class="card shadow-sm text-center py-3">
           <div class="fs-4 fw-bold text-warning" id="dash-total-attachments">—</div>
           <div class="small text-muted">With attachments</div>
         </div>
       </div>
-      <div class="col-6 col-md-3">
+      <div class="col-6 col-md-2">
         <div class="card shadow-sm text-center py-3">
-          <div class="fs-4 fw-bold text-info" id="dash-date-range">—</div>
-          <div class="small text-muted">Date range</div>
+          <div class="fs-5 fw-bold text-info" id="dash-oldest-email" style="font-size:1rem!important">—</div>
+          <div class="small text-muted">Oldest email</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-2">
+        <div class="card shadow-sm text-center py-3">
+          <div class="fs-5 fw-bold text-secondary" id="dash-newest-email" style="font-size:1rem!important">—</div>
+          <div class="small text-muted">Newest email</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-2">
+        <div class="card shadow-sm text-center py-3">
+          <div class="fs-5 fw-bold text-danger" id="dash-date-span">—</div>
+          <div class="small text-muted">Year span</div>
         </div>
       </div>
     </div>
@@ -2168,6 +2216,17 @@
       <div class="card-body p-2" style="position:relative;height:320px">
         <canvas id="chart-folders"></canvas>
         <div id="chart-folders-empty" class="text-center text-muted small pt-5" style="display:none">No folder data</div>
+      </div>
+    </div>
+
+    <!-- Activity Heatmap -->
+    <div class="card shadow-sm mb-4">
+      <div class="card-header py-2 px-3">
+        <span class="fw-semibold small"><i class="bi bi-grid3x3 me-2 text-success"></i>Email Activity Heatmap <span class="text-muted fw-normal">(hour of day × day of week)</span></span>
+      </div>
+      <div class="card-body p-3" id="dash-heatmap-body">
+        <div id="dash-heatmap-empty" class="text-center text-muted small py-4" style="display:none">No date data available</div>
+        <div id="dash-heatmap"></div>
       </div>
     </div>
 
@@ -2564,8 +2623,66 @@ function clearSearch() {
 function clearDates() {
   document.getElementById('date-from').value = '';
   document.getElementById('date-to').value   = '';
+  document.getElementById('all-date-preset').value = '';
   st.dateFrom = ''; st.dateTo = '';
   loadRecords(1);
+}
+
+function allApplyDatePreset() {
+  const preset = document.getElementById('all-date-preset').value;
+  if (!preset) return;
+  const now = new Date();
+  const y = now.getFullYear(), m = now.getMonth(), d = now.getDate();
+  const fmt = dt => {
+    const yy = dt.getFullYear();
+    const mm = String(dt.getMonth()+1).padStart(2,'0');
+    const dd = String(dt.getDate()).padStart(2,'0');
+    return `${yy}-${mm}-${dd}`;
+  };
+  let from, to;
+  if      (preset === 'this_week')    { const day=now.getDay()||7; from=new Date(y,m,d-day+1); to=new Date(y,m,d-day+7); }
+  else if (preset === 'last_week')    { const day=now.getDay()||7; from=new Date(y,m,d-day-6); to=new Date(y,m,d-day); }
+  else if (preset === 'this_month')   { from=new Date(y,m,1);   to=new Date(y,m+1,0); }
+  else if (preset === 'last_month')   { from=new Date(y,m-1,1); to=new Date(y,m,0); }
+  else if (preset === 'this_quarter') { const q=Math.floor(m/3); from=new Date(y,q*3,1);     to=new Date(y,q*3+3,0); }
+  else if (preset === 'last_quarter') { const q=Math.floor(m/3); from=new Date(y,(q-1)*3,1); to=new Date(y,q*3,0); }
+  else if (preset === 'this_year')    { from=new Date(y,0,1);   to=new Date(y,11,31); }
+  else if (preset === 'last_year')    { from=new Date(y-1,0,1); to=new Date(y-1,11,31); }
+  if (from && to) {
+    document.getElementById('date-from').value = fmt(from);
+    document.getElementById('date-to').value   = fmt(to);
+    st.dateFrom = fmt(from);
+    st.dateTo   = fmt(to);
+    loadRecords(1);
+  }
+}
+
+async function exportAllCsv() {
+  const btn = document.getElementById('all-csv-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Exporting…';
+  try {
+    const params = new URLSearchParams({ type: st.type });
+    if (st.q)          params.set('q',           st.q);
+    if (st.dateFrom)   params.set('date_from',   st.dateFrom);
+    if (st.dateTo)     params.set('date_to',     st.dateTo);
+    if (st.fromAddr)   params.set('from_addr',   st.fromAddr);
+    if (st.folderPath) params.set('folder_path', st.folderPath);
+    if (st.folderExact) params.set('folder_exact','1');
+    if (st._tagFilter) params.set('tag',         st._tagFilter);
+    const r = await fetch('/analytics/export-csv?' + params);
+    if (!r.ok) { alert('Export failed.'); return; }
+    const blob = await r.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'records.csv';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  } catch(e) { alert('Error: ' + e); }
+  finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-filetype-csv me-1"></i>Export CSV';
+  }
 }
 
 function clearActiveFilter() {
@@ -4712,6 +4829,51 @@ async function searchBrowseFiles() {
   }
 }
 
+// ── Saved searches (localStorage) ────────────────────────────────
+const _SS_KEY = 'pstbrowser_saved_searches';
+
+function _loadSavedSearches() {
+  try { return JSON.parse(localStorage.getItem(_SS_KEY) || '[]'); } catch { return []; }
+}
+function _saveSavedSearches(list) {
+  localStorage.setItem(_SS_KEY, JSON.stringify(list));
+}
+
+function saveCurrentSearch() {
+  const q = document.getElementById('browse-search-input').value.trim();
+  if (!q) { alert('Enter a search phrase first.'); return; }
+  const list = _loadSavedSearches();
+  if (list.includes(q)) { alert(`"${q}" is already saved.`); return; }
+  list.unshift(q);
+  _saveSavedSearches(list.slice(0, 20)); // keep last 20
+  renderSavedSearches();
+}
+
+function deleteSavedSearch(q) {
+  const list = _loadSavedSearches().filter(s => s !== q);
+  _saveSavedSearches(list);
+  renderSavedSearches();
+}
+
+function runSavedSearch(q) {
+  document.getElementById('browse-search-input').value = q;
+  searchBrowseFiles();
+}
+
+function renderSavedSearches() {
+  const list = _loadSavedSearches();
+  const bar  = document.getElementById('saved-searches-bar');
+  const chips = document.getElementById('saved-searches-chips');
+  if (!list.length) { bar.style.display = 'none'; return; }
+  bar.style.display = '';
+  chips.innerHTML = list.map(q =>
+    `<span class="badge bg-light border text-dark me-1 mb-1" style="cursor:pointer;font-weight:normal">` +
+    `<span onclick="runSavedSearch(${JSON.stringify(q)})" title="Run this search">${q}</span>` +
+    ` <span onclick="deleteSavedSearch(${JSON.stringify(q)})" title="Remove" style="opacity:.5;margin-left:4px">×</span>` +
+    `</span>`
+  ).join('');
+}
+
 function clearBrowseSearch() {
   _browseSearchActive = false;
   document.getElementById('browse-search-input').value = '';
@@ -4936,6 +5098,7 @@ async function initBrowseTab() {
     } catch {}
     _browseInited = true;
   }
+  renderSavedSearches();
   // Load files (all folders, newest first)
   await loadBrowseFiles();
 }
@@ -5053,17 +5216,36 @@ function clearBrowseFilter() {
   document.getElementById('browse-date-from').value = '';
   document.getElementById('browse-date-to').value = '';
   document.getElementById('browse-date-preset').value = '';
+  document.getElementById('browse-type-filter').value = '';
   document.getElementById('browse-filter-count').textContent = '';
   document.getElementById('browse-download-filtered-btn').classList.add('d-none');
   renderBrowseTable();
 }
 
+// Map type-filter dropdown values to sets of matching extensions
+function _browseTypeMatch(filename, typeVal) {
+  if (!typeVal) return true;
+  const ext = (filename.split('.').pop() || '').toLowerCase();
+  const map = {
+    pdf: ['pdf'],
+    doc: ['doc','docx'],
+    xls: ['xls','xlsx','csv'],
+    ppt: ['ppt','pptx'],
+    txt: ['txt','text','log','md'],
+    jpg: ['jpg','jpeg','png','gif','bmp','webp','tiff','svg'],
+    zip: ['zip','rar','7z','tar','gz','bz2'],
+  };
+  return (map[typeVal] || [typeVal]).includes(ext);
+}
+
 async function downloadBrowseFiltered() {
   const dateFrom = document.getElementById('browse-date-from').value;
   const dateTo   = document.getElementById('browse-date-to').value;
+  const typeVal  = document.getElementById('browse-type-filter').value;
   const filtered = _browseData.filter(f => {
     if (_browseFilterTerm && !(f.filename + ' ' + (f.email_from || '') + ' ' + f.folder)
         .toLowerCase().includes(_browseFilterTerm)) return false;
+    if (typeVal && !_browseTypeMatch(f.filename, typeVal)) return false;
     if (dateFrom || dateTo) {
       const fd = f.email_str ? f.email_str.slice(0, 10) : '';
       if (dateFrom && fd < dateFrom) return false;
@@ -5100,13 +5282,15 @@ function renderBrowseTable() {
   const tbody = document.getElementById('browse-tbody');
   _updateBrowseHeaders();
 
-  const dateFrom = document.getElementById('browse-date-from').value;
-  const dateTo   = document.getElementById('browse-date-to').value;
-  const hasFilter = _browseFilterTerm || dateFrom || dateTo;
+  const dateFrom  = document.getElementById('browse-date-from').value;
+  const dateTo    = document.getElementById('browse-date-to').value;
+  const typeVal   = document.getElementById('browse-type-filter').value;
+  const hasFilter = _browseFilterTerm || dateFrom || dateTo || typeVal;
 
   const filtered = _browseData.filter(f => {
     if (_browseFilterTerm && !(f.filename + ' ' + (f.email_from || '') + ' ' + f.folder)
         .toLowerCase().includes(_browseFilterTerm)) return false;
+    if (typeVal && !_browseTypeMatch(f.filename, typeVal)) return false;
     if (dateFrom || dateTo) {
       const d = f.email_str ? f.email_str.slice(0, 10) : '';
       if (dateFrom && d < dateFrom) return false;
@@ -6873,7 +7057,75 @@ async function loadDashboard() {
     loadSendersChart(),
     loadAttTypesChart(),
     loadFoldersChart(),
+    loadHeatmapChart(),
   ]);
+}
+
+// ── Activity Heatmap ──────────────────────────────────────────────
+async function loadHeatmapChart() {
+  const container = document.getElementById('dash-heatmap');
+  const empty     = document.getElementById('dash-heatmap-empty');
+  if (!container) return;
+  try {
+    const r = await fetch('/analytics/heatmap');
+    const d = await r.json();
+    const cells = d.cells || [];
+    if (!cells.length) { container.style.display = 'none'; empty.style.display = ''; return; }
+
+    // Build 7×24 grid: data[dow][hour]
+    const grid = Array.from({length: 7}, () => new Array(24).fill(0));
+    let maxVal = 0;
+    cells.forEach(c => {
+      grid[c.d][c.h] = c.v;
+      if (c.v > maxVal) maxVal = c.v;
+    });
+
+    const days  = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    const hours = Array.from({length:24}, (_,i) => i === 0 ? '12am' : i < 12 ? i+'am' : i === 12 ? '12pm' : (i-12)+'pm');
+
+    // Color scale: white → blue
+    const color = v => {
+      if (!v) return '#f3f4f6';
+      const t = v / maxVal;
+      const r = Math.round(239 - t*190), g = Math.round(246 - t*180), b = Math.round(255 - t*30);
+      return `rgb(${r},${g},${b})`;
+    };
+
+    const cellW = 28, cellH = 22, labelW = 32, labelH = 20, pad = 4;
+    const svgW = labelW + 24 * cellW + pad;
+    const svgH = labelH + 7  * cellH + pad;
+
+    let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${svgW}" height="${svgH}" style="overflow:visible;font-family:sans-serif">`;
+    // Hour labels
+    hours.forEach((h, hi) => {
+      if (hi % 3 === 0)
+        svg += `<text x="${labelW + hi*cellW + cellW/2}" y="${labelH - 4}" text-anchor="middle" font-size="9" fill="#6b7280">${h}</text>`;
+    });
+    // Day labels + rows
+    days.forEach((day, di) => {
+      const y = labelH + di * cellH;
+      svg += `<text x="${labelW - 4}" y="${y + cellH/2 + 4}" text-anchor="end" font-size="10" fill="#6b7280">${day}</text>`;
+      hours.forEach((_, hi) => {
+        const v = grid[di][hi];
+        const x = labelW + hi * cellW;
+        svg += `<rect x="${x+1}" y="${y+1}" width="${cellW-2}" height="${cellH-2}" rx="3" fill="${color(v)}" style="cursor:${v?'pointer':'default'}" onclick="${v ? `heatmapClick(${di},${hi})` : ''}">`;
+        svg += `<title>${day} ${hours[hi]}: ${v.toLocaleString()} email${v!==1?'s':''}</title></rect>`;
+      });
+    });
+    svg += '</svg>';
+    container.innerHTML = svg;
+    empty.style.display = 'none';
+  } catch(e) { console.warn('loadHeatmapChart:', e); }
+}
+
+function heatmapClick(dow, hour) {
+  // dow 0=Mon … 6=Sun; navigate to All Records filtered by approximate date isn't feasible
+  // — instead show a tooltip/info (date filter doesn't support hour/dow)
+  const days  = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+  const hours = Array.from({length:24}, (_,i) => i===0?'12am':i<12?i+'am':i===12?'12pm':(i-12)+'pm');
+  // Just a visual hint — no server-side hour/dow filter available
+  const msg = `Showing ${days[dow]} ${hours[hour]} activity.\n\nHour/day-of-week filters are not supported in All Records — use the date range to drill into a specific period.`;
+  alert(msg);
 }
 
 // ── Summary stat chips ────────────────────────────────────────────
@@ -6902,15 +7154,19 @@ async function loadDashSummary() {
         (d.labels || []).length.toLocaleString();
     }).catch(() => {});
 
-    // Date range — derive from volume labels
+    // Oldest / newest / span — derive from year volume labels
     const labels = vol.labels || [];
-    if (labels.length >= 2) {
-      document.getElementById('dash-date-range').textContent =
-        labels[0] + ' – ' + labels[labels.length - 1];
-    } else if (labels.length === 1) {
-      document.getElementById('dash-date-range').textContent = labels[0];
+    const oldest = labels.length ? labels[0] : null;
+    const newest = labels.length ? labels[labels.length - 1] : null;
+    document.getElementById('dash-oldest-email').textContent = oldest || '—';
+    document.getElementById('dash-newest-email').textContent = newest || '—';
+    if (oldest && newest && oldest !== newest) {
+      const span = parseInt(newest) - parseInt(oldest);
+      document.getElementById('dash-date-span').textContent = span + ' yr' + (span !== 1 ? 's' : '');
+    } else if (oldest) {
+      document.getElementById('dash-date-span').textContent = '1 yr';
     } else {
-      document.getElementById('dash-date-range').textContent = '—';
+      document.getElementById('dash-date-span').textContent = '—';
     }
   } catch (e) { console.warn('loadDashSummary:', e); }
 }

@@ -861,7 +861,7 @@ def suggestions():
 def admin_accounts():
     if not (current_user.is_authenticated and current_user.email.lower() in {e.lower() for e in ADMIN_EMAILS}):
         return redirect(url_for("login_page"))
-    users = list(get_users_col().find({}, {"_id":0,"email":1,"name":1,"provider":1,"created_at":1,"last_login":1,"plan":1})
+    users = list(get_users_col().find({}, {"_id":0,"email":1,"name":1,"provider":1,"created_at":1,"last_login":1,"plan":1,"sms_consent":1})
                  .sort("created_at", -1))
 
     def _dir_bytes(path: str) -> int:
@@ -892,6 +892,15 @@ def admin_accounts():
         u["storage_str"]  = _fmt_bytes(used)
         u["storage_pct"]  = min(100, int(used / max(quota_gb * 1024 ** 3, 1) * 100))
         u["quota_gb"]     = quota_gb
+        # Email/attachment counts from the user's MongoDB database
+        try:
+            user_db = _get_client()[f"pst_emails_{safe}"]
+            user_col = user_db["pst_items"]
+            u["email_count"] = user_col.count_documents({"item_type": "email"})
+            u["attach_count"] = user_col.count_documents({"has_attachments": True})
+        except Exception:
+            u["email_count"] = 0
+            u["attach_count"] = 0
 
     return render_template("admin_accounts.html", users=users)
 
@@ -5565,6 +5574,96 @@ def analytics_folders():
     counts       = [r["count"]         for r in rows]
 
     return jsonify({"labels": short_labels, "full_labels": full_labels, "counts": counts})
+
+
+@app.route("/analytics/heatmap")
+def analytics_heatmap():
+    """Email count by hour-of-day (0-23) × day-of-week (0=Mon … 6=Sun)."""
+    col  = get_col()
+    pipe = [
+        {"$match": {"date": {"$nin": [None]}, "item_type": "email"}},
+        {"$group": {
+            "_id": {
+                "dow":  {"$subtract": [{"$dayOfWeek": "$date"}, 1]},  # 1=Sun…7=Sat → 0-6
+                "hour": {"$hour": "$date"},
+            },
+            "count": {"$sum": 1},
+        }},
+    ]
+    rows = list(col.aggregate(pipe, allowDiskUse=True))
+    # Build a flat list: [{dow, hour, count}]
+    # MongoDB dayOfWeek: 1=Sun, convert to 0=Mon … 6=Sun
+    def _mon_first(dow_mongo):  # 1=Sun→6, 2=Mon→0, …, 7=Sat→5
+        return (dow_mongo - 2) % 7
+    cells = [{"d": _mon_first(r["_id"]["dow"]), "h": r["_id"]["hour"], "v": r["count"]}
+             for r in rows if r["_id"]]
+    return jsonify({"cells": cells})
+
+
+@app.route("/analytics/export-csv")
+def analytics_export_csv():
+    """Export current All Records search as CSV (max 10 000 rows)."""
+    import csv, io
+    q            = request.args.get("q",           "").strip()
+    date_from    = request.args.get("date_from",   "").strip()
+    date_to      = request.args.get("date_to",     "").strip()
+    from_addr_q  = request.args.get("from_addr",   "").strip()
+    folder_q     = request.args.get("folder_path", "").strip()
+    folder_exact = request.args.get("folder_exact","0") == "1"
+    item_type    = request.args.get("type",        "all").strip().lower()
+    tag_q        = request.args.get("tag",         "").strip()
+
+    col   = get_col()
+    query: dict = {}
+    if item_type and item_type != "all":
+        if item_type == "hasatt":
+            query["has_attachments"] = True
+        else:
+            query["item_type"] = item_type
+    if q:
+        _ensure_text_index(col)
+        query["$text"] = {"$search": q}
+    date_filter: dict = {}
+    if date_from:
+        try: date_filter["$gte"] = datetime.datetime.strptime(date_from, "%Y-%m-%d")
+        except ValueError: pass
+    if date_to:
+        try: date_filter["$lte"] = datetime.datetime.strptime(date_to, "%Y-%m-%d") + datetime.timedelta(days=1)
+        except ValueError: pass
+    if date_filter:
+        query["date"] = date_filter
+    if from_addr_q:
+        query["from_addr"] = {"$regex": _re_module.escape(from_addr_q), "$options": "i"}
+    if folder_q:
+        if folder_exact:
+            query["folder_path"] = folder_q
+        else:
+            query["folder_path"] = {"$regex": _re_module.escape(folder_q), "$options": "i"}
+    if tag_q:
+        query["tags"] = tag_q
+
+    rows = list(col.find(query, {"subject":1,"from_addr":1,"date":1,"folder_path":1,"item_type":1,"has_attachments":1})
+                  .sort("date", -1).limit(10_000))
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Date", "From", "Subject", "Folder", "Type", "Has Attachments"])
+    for r in rows:
+        d = r.get("date")
+        writer.writerow([
+            d.strftime("%Y-%m-%d %H:%M") if d else "",
+            r.get("from_addr", ""),
+            r.get("subject", ""),
+            r.get("folder_path", ""),
+            r.get("item_type", ""),
+            "Yes" if r.get("has_attachments") else "No",
+        ])
+
+    output.seek(0)
+    return output.getvalue(), 200, {
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": 'attachment; filename="records.csv"',
+    }
 
 
 # ---------------------------------------------------------------------------

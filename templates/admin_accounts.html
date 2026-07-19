@@ -24,6 +24,8 @@
             <th>Name</th>
             <th>Provider</th>
             <th>Plan</th>
+            <th>Emails</th>
+            <th>Attachments</th>
             <th>Signed Up</th>
             <th>Last Login</th>
             <th>Storage</th>
@@ -45,8 +47,10 @@
               {% endif %}
             </td>
             <td class="text-muted small text-capitalize">{{ u.plan or 'free' }}</td>
-            <td class="text-muted small">{{ u.created_at.strftime('%Y-%m-%d %H:%M') if u.created_at else '—' }}</td>
-            <td class="text-muted small">{{ u.last_login.strftime('%Y-%m-%d %H:%M') if u.last_login else '—' }}</td>
+            <td class="text-muted small text-end">{{ '{:,}'.format(u.email_count) }}</td>
+            <td class="text-muted small text-end">{{ '{:,}'.format(u.attach_count) }}</td>
+            <td class="text-muted small">{{ u.created_at.strftime('%Y-%m-%d') if u.created_at else '—' }}</td>
+            <td class="text-muted small">{{ u.last_login.strftime('%Y-%m-%d') if u.last_login else '—' }}</td>
             <td style="min-width:130px">
               <div class="d-flex align-items-center gap-2">
                 <div class="progress flex-grow-1" style="height:6px">
@@ -64,7 +68,7 @@
             </td>
           </tr>
           {% else %}
-          <tr><td colspan="8" class="text-center text-muted py-4">No accounts yet.</td></tr>
+          <tr><td colspan="10" class="text-center text-muted py-4">No accounts yet.</td></tr>
           {% endfor %}
         </tbody>
       </table>
