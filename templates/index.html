@@ -5069,12 +5069,110 @@ function doExportZip() {
 // ================================================================
 // Browse Files tab
 // ================================================================
-let _browseData  = [];      // current file list (loaded from server)
-let _browseSort  = 'date';  // active sort column
-let _browseOrder = 'desc';  // 'asc' | 'desc'
-let _browseInited = false;  // folder dropdown populated?
+let _browseData     = [];      // current file list (loaded from server)
+let _browseSort     = 'date';  // active sort column
+let _browseOrder    = 'desc';  // 'asc' | 'desc'
+let _browseInited   = false;   // folder dropdown populated?
+let _browseMongoExt = '';      // non-empty = MongoDB mode, value = extension
+let _browseMongoPg  = { page: 1, pages: 1, total: 0 };
+
+async function browseByMongoExt(ext) {
+  _browseMongoExt = ext;
+  showTab('browse');
+  showBrowseSub('list');
+  await _loadMongoAttachments(1);
+}
+
+async function _loadMongoAttachments(page) {
+  const tbody = document.getElementById('browse-tbody');
+  const status = document.getElementById('browse-status');
+  tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">' +
+    '<span class="spinner-border spinner-border-sm me-2"></span>Loading…</td></tr>';
+  status.textContent = '';
+  try {
+    const params = new URLSearchParams({
+      ext: _browseMongoExt, page, per_page: 100,
+      sort: _browseSort, order: _browseOrder,
+    });
+    const r = await fetch('/list-mongo-attachments?' + params);
+    const d = await r.json();
+    _browseData = (d.items || []).map(item => {
+      const sz = item.size_bytes || 0;
+      const size_str = sz >= 1048576 ? (sz/1048576).toFixed(1)+' MB'
+                     : sz >= 1024    ? (sz/1024).toFixed(0)+' KB'
+                     :                  sz+' B';
+      return {
+        ...item,
+        folder:    item.email_subject || '',
+        email_str: item.email_date || '',
+        size_str,
+      };
+    });
+    _browseMongoPg = { page: d.page, pages: d.pages, total: d.total };
+    status.textContent = `${d.total.toLocaleString()} .${_browseMongoExt.toUpperCase()} file${d.total !== 1 ? 's' : ''} in database (page ${d.page}/${d.pages})`;
+    _renderMongoModeHeader(true);
+    renderBrowseTable();
+    _renderMongoPagination(d.page, d.pages);
+  } catch {
+    tbody.innerHTML = '<tr><td colspan="6" class="text-danger text-center py-3">Error loading files.</td></tr>';
+  }
+}
+
+function _renderMongoModeHeader(show) {
+  let banner = document.getElementById('browse-mongo-banner');
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = 'browse-mongo-banner';
+    banner.className = 'alert alert-info py-2 px-3 small mb-3 d-flex align-items-center gap-2';
+    const browseCard = document.querySelector('#subtab-browse-list .card.shadow-sm');
+    browseCard.parentNode.insertBefore(banner, browseCard);
+  }
+  const folderHeader = document.getElementById('bh-folder');
+  if (show && _browseMongoExt) {
+    banner.style.display = '';
+    banner.innerHTML = `<i class="bi bi-database me-1 flex-shrink-0"></i>
+      <span class="flex-grow-1">Showing <strong>.${_browseMongoExt.toUpperCase()}</strong> files from database archive — stored in MongoDB, not on disk. Click <i class="bi bi-download"></i> to download any file.</span>
+      <button class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="_exitMongoMode()"><i class="bi bi-x me-1"></i>Back to disk files</button>`;
+    if (folderHeader) folderHeader.textContent = 'Subject';
+  } else {
+    banner.style.display = 'none';
+    if (folderHeader) folderHeader.innerHTML = 'Folder <i class="sort-icon bi bi-chevron-expand ms-1 text-muted opacity-50"></i>';
+  }
+}
+
+function _exitMongoMode() {
+  _browseMongoExt = '';
+  _renderMongoModeHeader(false);
+  const pager = document.getElementById('browse-mongo-pager');
+  if (pager) pager.remove();
+  document.getElementById('browse-folder').value = 'all';
+  loadBrowseFiles();
+}
+
+function _renderMongoPagination(page, pages) {
+  let pager = document.getElementById('browse-mongo-pager');
+  if (!pager) {
+    pager = document.createElement('div');
+    pager.id = 'browse-mongo-pager';
+    pager.className = 'd-flex justify-content-center align-items-center gap-2 mt-3';
+    const overflow = document.getElementById('browse-overflow');
+    overflow.parentNode.insertBefore(pager, overflow.nextSibling);
+  }
+  if (pages <= 1) { pager.style.display = 'none'; return; }
+  pager.style.display = '';
+  pager.innerHTML = `
+    <button class="btn btn-sm btn-outline-secondary" ${page <= 1 ? 'disabled' : ''}
+            onclick="_loadMongoAttachments(${page - 1})"><i class="bi bi-chevron-left"></i> Prev</button>
+    <span class="small text-muted">Page ${page} of ${pages}</span>
+    <button class="btn btn-sm btn-outline-secondary" ${page >= pages ? 'disabled' : ''}
+            onclick="_loadMongoAttachments(${page + 1})">Next <i class="bi bi-chevron-right"></i></button>`;
+}
 
 async function browseByFolder(folder, typeFilter) {
+  _browseMongoExt = '';
+  _renderMongoModeHeader(false);
+  const pager = document.getElementById('browse-mongo-pager');
+  if (pager) pager.remove();
   showTab('browse');
   await initBrowseTab();
   const sel     = document.getElementById('browse-folder');
@@ -5308,7 +5406,7 @@ function renderBrowseTable() {
   const dlBtn   = document.getElementById('browse-download-filtered-btn');
   if (hasFilter) {
     countEl.textContent = `${filtered.length.toLocaleString()} of ${_browseData.length.toLocaleString()} shown`;
-    dlBtn.classList.toggle('d-none', filtered.length === 0);
+    dlBtn.classList.toggle('d-none', filtered.length === 0 || !!_browseMongoExt);
   } else {
     countEl.textContent = '';
     dlBtn.classList.add('d-none');
@@ -5323,9 +5421,11 @@ function renderBrowseTable() {
 
   tbody.innerHTML = '';
   filtered.forEach(f => {
-    // Build URL-safe relative path (forward slashes, skip leading './')
-    const rel = f.folder === '.' ? f.filename : `${f.folder}/${f.filename}`;
-    const viewUrl = `/local-file/${encodeURIComponent(rel).replace(/%2F/g,'/')}`;
+    const isMongo = !!f.gridfs_id;
+
+    // Disk-mode: build URL-safe relative path
+    const rel     = (!isMongo && f.folder && f.folder !== '.') ? `${f.folder}/${f.filename}` : f.filename;
+    const viewUrl = isMongo ? `/attachment/${f.gridfs_id}` : `/local-file/${encodeURIComponent(rel).replace(/%2F/g,'/')}`;
     const dlUrl   = viewUrl + '?dl=1';
 
     const fromHtml = f.email_id
@@ -5333,26 +5433,33 @@ function renderBrowseTable() {
            <i class="bi bi-envelope-open me-1"></i>${esc(f.email_from || '(open email)')}</a>`
       : `<span class="text-muted">${esc(f.email_from || '—')}</span>`;
 
+    // First column: folder badge for disk mode, subject for mongo mode
+    const col1Html = isMongo
+      ? `<span class="small text-muted" style="max-width:180px;display:inline-block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(f.folder)}">${esc(f.folder || '—')}</span>`
+      : `<span class="badge bg-secondary">${esc(f.folder === '.' ? '(root)' : f.folder)}</span>`;
+
     const tr = document.createElement('tr');
-    tr.className = 'browse-row-click';
-    tr.title     = 'Click to preview';
+    tr.className = isMongo ? '' : 'browse-row-click';
+    if (!isMongo) tr.title = 'Click to preview';
     tr.innerHTML = `
-      <td><span class="badge bg-secondary">${esc(f.folder === '.' ? '(root)' : f.folder)}</span></td>
+      <td>${col1Html}</td>
       <td class="small fw-semibold" style="max-width:300px;word-break:break-all">${esc(f.filename)}</td>
       <td class="text-end text-muted small text-nowrap">${esc(f.size_str)}</td>
       <td class="text-muted small text-nowrap">${esc(f.email_str)}</td>
       <td class="small" style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${fromHtml}</td>
       <td class="text-nowrap">
-        <a href="${viewUrl}" target="_blank" rel="noopener"
+        ${isMongo ? '' : `<a href="${viewUrl}" target="_blank" rel="noopener"
            class="btn btn-sm btn-outline-primary border-0 px-1 py-0" title="Open in new tab">
           <i class="bi bi-box-arrow-up-right"></i>
-        </a>
+        </a>`}
         <a href="${dlUrl}"
            class="btn btn-sm btn-outline-secondary border-0 px-1 py-0" title="Download">
           <i class="bi bi-download"></i>
         </a>
       </td>`;
-    tr.addEventListener('click', () => openPreview(rel, f.filename));
+    if (!isMongo) {
+      tr.addEventListener('click', () => openPreview(rel, f.filename));
+    }
     tr.querySelectorAll('a').forEach(a => a.addEventListener('click', e => e.stopPropagation()));
     const fromLink = tr.querySelector('.browse-from-link');
     if (fromLink) fromLink.addEventListener('click', e => {
@@ -7382,14 +7489,8 @@ async function loadAttTypesChart() {
           if (extToFolder[ext]) {
             browseByFolder(extToFolder[ext]);
           } else {
-            // No disk folder for this type — show emails containing this attachment type
-            st.attExt = ext;
-            st.q = ''; st.fromAddr = ''; st.folderPath = ''; st.dateFrom = ''; st.dateTo = '';
-            document.getElementById('search-input').value = '';
-            document.getElementById('date-from').value = '';
-            document.getElementById('date-to').value   = '';
-            showTab('all');
-            loadRecords(1);
+            // No disk folder — show MongoDB-stored attachments in Browse view
+            browseByMongoExt(ext);
           }
         },
         onHover: (evt, elements) => {

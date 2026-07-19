@@ -1518,6 +1518,86 @@ def search_attachment_names():
     return jsonify({"results": results})
 
 
+@app.route("/list-mongo-attachments")
+@login_required
+def list_mongo_attachments():
+    """List attachments stored in MongoDB/GridFS by file extension (not on disk)."""
+    ext      = request.args.get("ext", "").strip().lower()
+    page     = max(1, int(request.args.get("page", 1)))
+    per_page = min(int(request.args.get("per_page", 100)), 500)
+    sort_by  = request.args.get("sort", "date")
+    order    = request.args.get("order", "desc")
+
+    if not ext:
+        return jsonify({"error": "ext required"}), 400
+
+    col = get_col()
+    regex_filter = {
+        "$regex":   r"\." + _re_module.escape(ext) + r"$",
+        "$options": "i",
+    }
+    match_stage = {
+        "$match": {
+            "has_attachments": True,
+            "attachments.filename": regex_filter,
+        }
+    }
+    pipeline_base = [
+        match_stage,
+        {"$unwind": "$attachments"},
+        {"$match": {"attachments.filename": regex_filter}},
+        {"$project": {
+            "filename":      "$attachments.filename",
+            "size_bytes":    "$attachments.size_bytes",
+            "gridfs_id":     "$attachments.gridfs_id",
+            "email_date":    "$date",
+            "email_subject": "$subject",
+            "email_from":    "$from_addr",
+        }},
+    ]
+
+    count_result = list(col.aggregate(pipeline_base + [{"$count": "total"}]))
+    total = count_result[0]["total"] if count_result else 0
+
+    sort_field = {
+        "date":     "email_date",
+        "size":     "size_bytes",
+        "name":     "filename",
+        "subject":  "email_subject",
+        "from":     "email_from",
+    }.get(sort_by, "email_date")
+    sort_dir = -1 if order == "desc" else 1
+
+    rows = list(col.aggregate(pipeline_base + [
+        {"$sort": {sort_field: sort_dir}},
+        {"$skip": (page - 1) * per_page},
+        {"$limit": per_page},
+    ]))
+
+    items = []
+    for doc in rows:
+        dt = doc.get("email_date")
+        items.append({
+            "filename":      doc.get("filename", ""),
+            "size_bytes":    doc.get("size_bytes") or 0,
+            "gridfs_id":     doc.get("gridfs_id") or "",
+            "email_date":    dt.strftime("%Y-%m-%d") if dt else "",
+            "email_ts":      dt.timestamp() if dt else 0,
+            "email_subject": doc.get("email_subject") or "",
+            "email_from":    doc.get("email_from") or "",
+            "email_id":      str(doc["_id"]),
+        })
+
+    return jsonify({
+        "items":    items,
+        "total":    total,
+        "page":     page,
+        "per_page": per_page,
+        "pages":    max(1, -(-total // per_page)),
+        "ext":      ext,
+    })
+
+
 @app.route("/attachments/download")
 def download_attachment_file():
     folder   = request.args.get("folder", "")
