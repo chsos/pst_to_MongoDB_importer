@@ -738,11 +738,11 @@
         <div class="card-body py-2">
           <div class="d-flex align-items-center gap-2 flex-wrap mb-2">
             <label class="fw-semibold small mb-0">Folder:</label>
-            <select id="browse-folder" class="form-select form-select-sm" style="max-width:200px"
+            <select id="browse-folder" class="form-select form-select-sm" style="max-width:180px"
                     onchange="onBrowseFolderChange()">
               <option value="all">All folders</option>
             </select>
-            <div class="input-group input-group-sm ms-2" style="max-width:260px">
+            <div class="input-group input-group-sm ms-1" style="max-width:220px">
               <span class="input-group-text bg-white"><i class="bi bi-funnel text-muted"></i></span>
               <input id="browse-filter-input" type="text" class="form-control"
                      placeholder="Filter by filename…" oninput="applyBrowseFilter()">
@@ -750,6 +750,23 @@
                 <i class="bi bi-x-lg"></i>
               </button>
             </div>
+            <select id="browse-date-preset" class="form-select form-select-sm" style="max-width:150px"
+                    onchange="browseApplyDatePreset()">
+              <option value="">Date range…</option>
+              <option value="this_week">This week</option>
+              <option value="last_week">Last week</option>
+              <option value="this_month">This month</option>
+              <option value="last_month">Last month</option>
+              <option value="this_quarter">This quarter</option>
+              <option value="last_quarter">Last quarter</option>
+              <option value="this_year">This year</option>
+              <option value="last_year">Last year</option>
+            </select>
+            <input id="browse-date-from" type="date" class="form-control form-control-sm" style="max-width:140px"
+                   title="Email date from" oninput="applyBrowseFilter(); document.getElementById('browse-date-preset').value=''">
+            <span class="text-muted small">–</span>
+            <input id="browse-date-to" type="date" class="form-control form-control-sm" style="max-width:140px"
+                   title="Email date to" oninput="applyBrowseFilter(); document.getElementById('browse-date-preset').value=''">
             <span id="browse-filter-count" class="small text-muted"></span>
             <button id="browse-download-filtered-btn" class="btn btn-sm btn-success d-none"
                     onclick="downloadBrowseFiltered()">
@@ -4987,6 +5004,28 @@ function _updateBrowseHeaders() {
 
 let _browseFilterTerm = '';
 
+function browseApplyDatePreset() {
+  const preset = document.getElementById('browse-date-preset').value;
+  if (!preset) return;
+  const now = new Date();
+  const y = now.getFullYear(), m = now.getMonth(), d = now.getDate();
+  const fmt = dt => dt.toISOString().slice(0, 10);
+  let from, to;
+  if      (preset === 'this_week')    { const day = now.getDay()||7; from=new Date(y,m,d-day+1); to=new Date(y,m,d-day+7); }
+  else if (preset === 'last_week')    { const day = now.getDay()||7; from=new Date(y,m,d-day-6); to=new Date(y,m,d-day); }
+  else if (preset === 'this_month')   { from=new Date(y,m,1);   to=new Date(y,m+1,0); }
+  else if (preset === 'last_month')   { from=new Date(y,m-1,1); to=new Date(y,m,0); }
+  else if (preset === 'this_quarter') { const q=Math.floor(m/3); from=new Date(y,q*3,1);     to=new Date(y,q*3+3,0); }
+  else if (preset === 'last_quarter') { const q=Math.floor(m/3); from=new Date(y,(q-1)*3,1); to=new Date(y,q*3,0); }
+  else if (preset === 'this_year')    { from=new Date(y,0,1);   to=new Date(y,11,31); }
+  else if (preset === 'last_year')    { from=new Date(y-1,0,1); to=new Date(y-1,11,31); }
+  if (from && to) {
+    document.getElementById('browse-date-from').value = fmt(from);
+    document.getElementById('browse-date-to').value   = fmt(to);
+    applyBrowseFilter();
+  }
+}
+
 function applyBrowseFilter() {
   _browseFilterTerm = document.getElementById('browse-filter-input').value.trim().toLowerCase();
   renderBrowseTable();
@@ -4995,6 +5034,9 @@ function applyBrowseFilter() {
 function clearBrowseFilter() {
   _browseFilterTerm = '';
   document.getElementById('browse-filter-input').value = '';
+  document.getElementById('browse-date-from').value = '';
+  document.getElementById('browse-date-to').value = '';
+  document.getElementById('browse-date-preset').value = '';
   document.getElementById('browse-filter-count').textContent = '';
   document.getElementById('browse-download-filtered-btn').classList.add('d-none');
   renderBrowseTable();
@@ -5034,14 +5076,24 @@ function renderBrowseTable() {
   const tbody = document.getElementById('browse-tbody');
   _updateBrowseHeaders();
 
-  const filtered = _browseFilterTerm
-    ? _browseData.filter(f => (f.filename + ' ' + (f.email_from || '') + ' ' + f.folder)
-        .toLowerCase().includes(_browseFilterTerm))
-    : _browseData;
+  const dateFrom = document.getElementById('browse-date-from').value;
+  const dateTo   = document.getElementById('browse-date-to').value;
+  const hasFilter = _browseFilterTerm || dateFrom || dateTo;
 
-  const countEl  = document.getElementById('browse-filter-count');
-  const dlBtn    = document.getElementById('browse-download-filtered-btn');
-  if (_browseFilterTerm) {
+  const filtered = _browseData.filter(f => {
+    if (_browseFilterTerm && !(f.filename + ' ' + (f.email_from || '') + ' ' + f.folder)
+        .toLowerCase().includes(_browseFilterTerm)) return false;
+    if (dateFrom || dateTo) {
+      const d = f.email_str ? f.email_str.slice(0, 10) : '';
+      if (dateFrom && d < dateFrom) return false;
+      if (dateTo   && d > dateTo)   return false;
+    }
+    return true;
+  });
+
+  const countEl = document.getElementById('browse-filter-count');
+  const dlBtn   = document.getElementById('browse-download-filtered-btn');
+  if (hasFilter) {
     countEl.textContent = `${filtered.length.toLocaleString()} of ${_browseData.length.toLocaleString()} shown`;
     dlBtn.classList.toggle('d-none', filtered.length === 0);
   } else {
