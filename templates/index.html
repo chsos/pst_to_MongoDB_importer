@@ -5130,8 +5130,16 @@ function _renderMongoModeHeader(show) {
   const folderHeader = document.getElementById('bh-folder');
   if (show && _browseMongoExt) {
     banner.style.display = '';
+    const dateFrom = document.getElementById('browse-date-from').value;
+    const dateTo   = document.getElementById('browse-date-to').value;
+    let zipUrl = `/download-mongo-attachments-zip?ext=${encodeURIComponent(_browseMongoExt)}`;
+    if (dateFrom) zipUrl += `&date_from=${dateFrom}`;
+    if (dateTo)   zipUrl += `&date_to=${dateTo}`;
+    const dateLabel = (dateFrom || dateTo)
+      ? ` · ${dateFrom || '…'} → ${dateTo || '…'}` : '';
     banner.innerHTML = `<i class="bi bi-database me-1 flex-shrink-0"></i>
-      <span class="flex-grow-1">Showing <strong>.${_browseMongoExt.toUpperCase()}</strong> files from database archive — stored in MongoDB, not on disk. Click <i class="bi bi-download"></i> to download any file.</span>
+      <span class="flex-grow-1">Showing <strong>.${_browseMongoExt.toUpperCase()}</strong> files from database${dateLabel} — stored in MongoDB, not on disk.</span>
+      <a href="${zipUrl}" class="btn btn-sm btn-success py-0 px-2"><i class="bi bi-file-zip me-1"></i>Download all as ZIP</a>
       <button class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="_exitMongoMode()"><i class="bi bi-x me-1"></i>Back to disk files</button>`;
     if (folderHeader) folderHeader.innerHTML = 'Subject <i class="sort-icon bi bi-chevron-expand ms-1 text-muted opacity-50"></i>';
   } else {

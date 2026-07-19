@@ -1598,6 +1598,76 @@ def list_mongo_attachments():
     })
 
 
+@app.route("/download-mongo-attachments-zip")
+@login_required
+def download_mongo_attachments_zip():
+    """Stream MongoDB/GridFS attachments matching ext + optional date range as a ZIP."""
+    import zipfile as _zf
+    ext       = request.args.get("ext", "").strip().lower()
+    date_from = request.args.get("date_from", "").strip()
+    date_to   = request.args.get("date_to",   "").strip()
+    max_files = min(int(request.args.get("max", 500)), 2000)
+
+    if not ext:
+        return jsonify({"error": "ext required"}), 400
+
+    col = get_col()
+    regex_filter = {"$regex": r"\." + _re_module.escape(ext) + r"$", "$options": "i"}
+
+    date_filter: dict = {}
+    if date_from:
+        try:
+            date_filter["$gte"] = datetime.datetime.strptime(date_from, "%Y-%m-%d")
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            date_filter["$lte"] = datetime.datetime.strptime(date_to, "%Y-%m-%d") + datetime.timedelta(days=1)
+        except ValueError:
+            pass
+
+    match: dict = {"has_attachments": True, "attachments.filename": regex_filter}
+    if date_filter:
+        match["date"] = date_filter
+
+    pipeline = [
+        {"$match": match},
+        {"$unwind": "$attachments"},
+        {"$match": {"attachments.filename": regex_filter}},
+        {"$project": {"filename": "$attachments.filename", "gridfs_id": "$attachments.gridfs_id"}},
+        {"$limit": max_files},
+    ]
+
+    fs  = get_fs()
+    buf = io.BytesIO()
+    seen: dict = {}  # deduplicate filenames within the ZIP
+
+    with _zf.ZipFile(buf, "w", _zf.ZIP_DEFLATED) as zf:
+        for doc in col.aggregate(pipeline):
+            gid = doc.get("gridfs_id")
+            fname = doc.get("filename") or f"attachment.{ext}"
+            if not gid:
+                continue
+            # Deduplicate filename
+            base, fext = os.path.splitext(fname)
+            n = seen.get(fname, 0)
+            seen[fname] = n + 1
+            zipped_name = fname if n == 0 else f"{base}_{n}{fext}"
+            try:
+                data = fs.get(ObjectId(gid)).read()
+                zf.writestr(zipped_name, data)
+            except Exception:
+                pass
+
+    buf.seek(0)
+    safe_ext = _re_module.sub(r"[^a-z0-9]", "", ext)
+    dl_name  = f"{safe_ext}_attachments.zip"
+    if date_from or date_to:
+        dl_name = f"{safe_ext}_{(date_from or 'start')}_{(date_to or 'end')}.zip"
+    return send_file(buf, as_attachment=True, download_name=dl_name,
+                     mimetype="application/zip")
+
+
 @app.route("/attachments/download")
 def download_attachment_file():
     folder   = request.args.get("folder", "")
