@@ -5394,6 +5394,7 @@ async function downloadBrowseFiltered() {
 function renderBrowseTable() {
   const tbody = document.getElementById('browse-tbody');
   _updateBrowseHeaders();
+  _renderMongoModeHeader(!!_browseMongoExt);
 
   const dateFrom  = document.getElementById('browse-date-from').value;
   const dateTo    = document.getElementById('browse-date-to').value;
