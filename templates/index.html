@@ -5071,13 +5071,15 @@ let _browseSort  = 'date';  // active sort column
 let _browseOrder = 'desc';  // 'asc' | 'desc'
 let _browseInited = false;  // folder dropdown populated?
 
-async function browseByFolder(folder) {
+async function browseByFolder(folder, typeFilter) {
   showTab('browse');
   await initBrowseTab();
-  const sel = document.getElementById('browse-folder');
+  const sel     = document.getElementById('browse-folder');
+  const typeSel = document.getElementById('browse-type-filter');
+  if (typeSel) typeSel.value = typeFilter || '';
   if (sel) {
     sel.value = folder;
-    if (!sel.value) sel.value = 'all'; // fallback if folder not in list
+    if (!sel.value) sel.value = 'all';
   }
   await loadBrowseFiles();
 }
@@ -7360,10 +7362,9 @@ async function loadAttTypesChart() {
             },
           },
         },
-        onClick: async (evt, elements) => {
+        onClick: (evt, elements) => {
           if (!elements.length) return;
           const ext = attLabelsRaw[elements[0].index].toLowerCase();
-          // Map extension → actual folder name (mirrors _EXT_FOLDER in app.py)
           const extToFolder = {
             pdf: 'pdf',
             doc: 'Word', docx: 'Word', rtf: 'Word', odt: 'Word',
@@ -7374,23 +7375,9 @@ async function loadAttTypesChart() {
             mp4: 'Videos', avi: 'Videos', mov: 'Videos', wmv: 'Videos', mkv: 'Videos',
             txt: 'Text', log: 'Text', xml: 'Text', json: 'Text', html: 'Text', htm: 'Text',
           };
-          const folder = extToFolder[ext];
-          showTab('browse');
-          await initBrowseTab();
-          const folderSel = document.getElementById('browse-folder');
-          const typeSel   = document.getElementById('browse-type-filter');
-          if (folder) {
-            // Navigate to the named folder; clear type filter
-            if (folderSel) { folderSel.value = folder; if (!folderSel.value) folderSel.value = 'all'; }
-            if (typeSel) typeSel.value = '';
-            await loadBrowseFiles();
-          } else {
-            // Unknown folder (zip/Other etc.) — use type filter on all folders
-            if (folderSel) folderSel.value = 'all';
-            if (typeSel) typeSel.value = ext;
-            await loadBrowseFiles();
-            applyBrowseFilter();
-          }
+          const folder = extToFolder[ext] || 'all';
+          const typeFilter = extToFolder[ext] ? '' : ext;
+          browseByFolder(folder, typeFilter);
         },
         onHover: (evt, elements) => {
           canvas.style.cursor = elements.length ? 'pointer' : 'default';
