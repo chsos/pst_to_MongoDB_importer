@@ -7360,7 +7360,7 @@ async function loadAttTypesChart() {
             },
           },
         },
-        onClick: (evt, elements) => {
+        onClick: async (evt, elements) => {
           if (!elements.length) return;
           const ext = attLabelsRaw[elements[0].index].toLowerCase();
           // Map extension → actual folder name (mirrors _EXT_FOLDER in app.py)
@@ -7373,10 +7373,24 @@ async function loadAttTypesChart() {
             bmp: 'Images', tiff: 'Images', tif: 'Images', svg: 'Images', webp: 'Images',
             mp4: 'Videos', avi: 'Videos', mov: 'Videos', wmv: 'Videos', mkv: 'Videos',
             txt: 'Text', log: 'Text', xml: 'Text', json: 'Text', html: 'Text', htm: 'Text',
-            zip: 'Other', rar: 'Other', '7z': 'Other', tar: 'Other', gz: 'Other', bz2: 'Other',
           };
-          const folder = extToFolder[ext] || ext;
-          browseByFolder(folder);
+          const folder = extToFolder[ext];
+          showTab('browse');
+          await initBrowseTab();
+          const folderSel = document.getElementById('browse-folder');
+          const typeSel   = document.getElementById('browse-type-filter');
+          if (folder) {
+            // Navigate to the named folder; clear type filter
+            if (folderSel) { folderSel.value = folder; if (!folderSel.value) folderSel.value = 'all'; }
+            if (typeSel) typeSel.value = '';
+            await loadBrowseFiles();
+          } else {
+            // Unknown folder (zip/Other etc.) — use type filter on all folders
+            if (folderSel) folderSel.value = 'all';
+            if (typeSel) typeSel.value = ext;
+            await loadBrowseFiles();
+            applyBrowseFilter();
+          }
         },
         onHover: (evt, elements) => {
           canvas.style.cursor = elements.length ? 'pointer' : 'default';
