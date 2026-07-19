@@ -2602,6 +2602,7 @@ def records():
     folder_q      = request.args.get("folder_path", "").strip()
     folder_exact  = request.args.get("folder_exact", "0") == "1"
     tag_q         = request.args.get("tag",         "").strip()
+    att_ext_q     = request.args.get("att_ext",     "").strip().lower()
     fuzzy         = request.args.get("fuzzy", "0") == "1"
 
     valid_sorts = {"date", "subject", "from_addr"}
@@ -2680,6 +2681,12 @@ def records():
             query["folder_path"] = {"$regex": _escaped + r"($|[/\\])", "$options": "i"}
         else:
             query["folder_path"] = {"$regex": folder_q, "$options": "i"}
+    if att_ext_q:
+        query["has_attachments"] = True
+        query["attachments.filename"] = {
+            "$regex": r"\." + _re_module.escape(att_ext_q) + r"$",
+            "$options": "i",
+        }
     if tag_q:
         query["tags"] = tag_q
 

@@ -2405,7 +2405,7 @@
 // ================================================================
 // State
 // ================================================================
-const st = { page: 1, sort: 'date', order: -1, type: 'all', q: '', dateFrom: '', dateTo: '', fuzzy: false, searchMode: '', fromAddr: '', folderPath: '', folderExact: false, _tagFilter: '' };
+const st = { page: 1, sort: 'date', order: -1, type: 'all', q: '', dateFrom: '', dateTo: '', fuzzy: false, searchMode: '', fromAddr: '', folderPath: '', folderExact: false, _tagFilter: '', attExt: '' };
 
 const TYPE_LABELS = { all:'records', email:'emails', contact:'contacts', appointment:'appointments', task:'tasks', hasatt:'records with attachments', other:'items' };
 const TYPE_ICONS  = { email:'envelope', contact:'person-vcard', appointment:'calendar-event', task:'check2-square', hasatt:'paperclip', other:'file-earmark' };
@@ -2686,7 +2686,7 @@ async function exportAllCsv() {
 }
 
 function clearActiveFilter() {
-  st.fromAddr = ''; st.folderPath = ''; st.folderExact = false;
+  st.fromAddr = ''; st.folderPath = ''; st.folderExact = false; st.attExt = '';
   _ftSelected = null;
   _reRenderFolderTree();
   const filterBar = document.getElementById('active-filter-bar');
@@ -3185,15 +3185,18 @@ async function loadRecords(page) {
   if (st.folderPath)  params.set('folder_path',  st.folderPath);
   if (st.folderExact) params.set('folder_exact', '1');
   if (st._tagFilter)  params.set('tag',           st._tagFilter);
+  if (st.attExt)      params.set('att_ext',       st.attExt);
 
   // Show/hide filter bar
   const filterBar  = document.getElementById('active-filter-bar');
   const filterText = document.getElementById('active-filter-text');
   if (filterBar) {
-    const hasFilter = st.fromAddr || st.folderPath;
+    const hasFilter = st.fromAddr || st.folderPath || st.attExt;
     filterBar.style.setProperty('display', hasFilter ? 'flex' : 'none', 'important');
     if (hasFilter && filterText) {
-      const label = st.fromAddr ? `Sender: ${st.fromAddr}` : `Folder: ${st.folderPath}`;
+      let label = st.fromAddr ? `Sender: ${st.fromAddr}`
+                : st.attExt  ? `Attachment type: .${st.attExt.toUpperCase()}`
+                :               `Folder: ${st.folderPath}`;
       const dates = (st.dateFrom || st.dateTo)
         ? ` · ${st.dateFrom || '…'} → ${st.dateTo || '…'}` : '';
       filterText.textContent = label + dates;
@@ -7365,6 +7368,7 @@ async function loadAttTypesChart() {
         onClick: (evt, elements) => {
           if (!elements.length) return;
           const ext = attLabelsRaw[elements[0].index].toLowerCase();
+          // Extensions that have a named disk folder → Browse Attachments
           const extToFolder = {
             pdf: 'pdf',
             doc: 'Word', docx: 'Word', rtf: 'Word', odt: 'Word',
@@ -7374,11 +7378,19 @@ async function loadAttTypesChart() {
             bmp: 'Images', tiff: 'Images', tif: 'Images', svg: 'Images', webp: 'Images',
             mp4: 'Videos', avi: 'Videos', mov: 'Videos', wmv: 'Videos', mkv: 'Videos',
             txt: 'Text', log: 'Text', xml: 'Text', json: 'Text', html: 'Text', htm: 'Text',
-            zip: 'Other', rar: 'Other', '7z': 'Other', tar: 'Other', gz: 'Other', bz2: 'Other',
           };
-          // Navigate to named folder; if folder not in dropdown, fall back to type filter
-          const folder = extToFolder[ext] || 'Other';
-          browseByFolder(folder);
+          if (extToFolder[ext]) {
+            browseByFolder(extToFolder[ext]);
+          } else {
+            // No disk folder for this type — show emails containing this attachment type
+            st.attExt = ext;
+            st.q = ''; st.fromAddr = ''; st.folderPath = ''; st.dateFrom = ''; st.dateTo = '';
+            document.getElementById('search-input').value = '';
+            document.getElementById('date-from').value = '';
+            document.getElementById('date-to').value   = '';
+            showTab('all');
+            loadRecords(1);
+          }
         },
         onHover: (evt, elements) => {
           canvas.style.cursor = elements.length ? 'pointer' : 'default';
