@@ -5009,7 +5009,12 @@ function browseApplyDatePreset() {
   if (!preset) return;
   const now = new Date();
   const y = now.getFullYear(), m = now.getMonth(), d = now.getDate();
-  const fmt = dt => dt.toISOString().slice(0, 10);
+  const fmt = dt => {
+    const yy = dt.getFullYear();
+    const mm = String(dt.getMonth()+1).padStart(2,'0');
+    const dd = String(dt.getDate()).padStart(2,'0');
+    return `${yy}-${mm}-${dd}`;
+  };
   let from, to;
   if      (preset === 'this_week')    { const day = now.getDay()||7; from=new Date(y,m,d-day+1); to=new Date(y,m,d-day+7); }
   else if (preset === 'last_week')    { const day = now.getDay()||7; from=new Date(y,m,d-day-6); to=new Date(y,m,d-day); }
@@ -5043,10 +5048,18 @@ function clearBrowseFilter() {
 }
 
 async function downloadBrowseFiltered() {
-  const filtered = _browseFilterTerm
-    ? _browseData.filter(f => (f.filename + ' ' + (f.email_from || '') + ' ' + f.folder)
-        .toLowerCase().includes(_browseFilterTerm))
-    : _browseData;
+  const dateFrom = document.getElementById('browse-date-from').value;
+  const dateTo   = document.getElementById('browse-date-to').value;
+  const filtered = _browseData.filter(f => {
+    if (_browseFilterTerm && !(f.filename + ' ' + (f.email_from || '') + ' ' + f.folder)
+        .toLowerCase().includes(_browseFilterTerm)) return false;
+    if (dateFrom || dateTo) {
+      const fd = f.email_str ? f.email_str.slice(0, 10) : '';
+      if (dateFrom && fd < dateFrom) return false;
+      if (dateTo   && fd > dateTo)   return false;
+    }
+    return true;
+  });
   if (!filtered.length) { alert('No files to download.'); return; }
   const paths = filtered.map(f => f.folder === '.' ? f.filename : `${f.folder}/${f.filename}`);
   const btn = document.getElementById('browse-download-filtered-btn');
