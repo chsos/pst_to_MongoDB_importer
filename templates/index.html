@@ -7152,7 +7152,7 @@ async function loadFoldersChart() {
           tooltip: {
             callbacks: {
               title: items => d.full_labels[items[0].dataIndex],
-              label:  c => ' ' + c.parsed.x.toLocaleString() + ' emails',
+              label:  c => ' ' + c.parsed.x.toLocaleString() + ' emails — click to view',
             },
           },
         },
@@ -7160,6 +7160,28 @@ async function loadFoldersChart() {
           x: { beginAtZero: true, ticks: { callback: v => v.toLocaleString() },
                grid: { color: '#f0f1f5' } },
           y: { ticks: { font: { size: 11 } }, grid: { display: false } },
+        },
+        onClick: (evt, elements) => {
+          if (!elements.length) return;
+          const folder = d.full_labels[elements[0].index];
+          st.folderPath  = folder;
+          st.folderExact = true;
+          st.q = '';
+          st.fromAddr = ''; st.dateFrom = ''; st.dateTo = '';
+          document.getElementById('search-input').value = '';
+          document.getElementById('date-from').value = '';
+          document.getElementById('date-to').value   = '';
+          const filterBar  = document.getElementById('active-filter-bar');
+          const filterText = document.getElementById('active-filter-text');
+          if (filterBar && filterText) {
+            filterText.textContent = `Folder: ${folder}`;
+            filterBar.style.removeProperty('display');
+          }
+          showTab('all');
+          loadRecords(1);
+        },
+        onHover: (evt, elements) => {
+          canvas.style.cursor = elements.length ? 'pointer' : 'default';
         },
       },
     });
