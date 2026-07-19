@@ -4909,6 +4909,17 @@ let _browseSort  = 'date';  // active sort column
 let _browseOrder = 'desc';  // 'asc' | 'desc'
 let _browseInited = false;  // folder dropdown populated?
 
+async function browseByFolder(folder) {
+  showTab('browse');
+  await initBrowseTab();
+  const sel = document.getElementById('browse-folder');
+  if (sel) {
+    sel.value = folder;
+    if (!sel.value) sel.value = 'all'; // fallback if folder not in list
+  }
+  await loadBrowseFiles();
+}
+
 async function initBrowseTab() {
   // Populate the folder dropdown once
   if (!_browseInited) {
@@ -7016,10 +7027,11 @@ async function loadAttTypesChart() {
     }
     canvas.style.display = ''; empty.style.display = 'none';
 
+    const attLabelsRaw = d.labels;  // lowercase folder names, e.g. ['pdf','docx',...]
     _charts['att-types'] = new Chart(canvas, {
       type: 'doughnut',
       data: {
-        labels: d.labels.map(l => l.toUpperCase()),
+        labels: attLabelsRaw.map(l => l.toUpperCase()),
         datasets: [{
           data: d.counts,
           backgroundColor: DASH_PALETTE,
@@ -7038,9 +7050,17 @@ async function loadAttTypesChart() {
           },
           tooltip: {
             callbacks: {
-              label: c => ` ${c.label}: ${c.parsed.toLocaleString()}`,
+              label: c => ` ${c.label}: ${c.parsed.toLocaleString()} — click to browse`,
             },
           },
+        },
+        onClick: (evt, elements) => {
+          if (!elements.length) return;
+          const folder = attLabelsRaw[elements[0].index];
+          browseByFolder(folder);
+        },
+        onHover: (evt, elements) => {
+          canvas.style.cursor = elements.length ? 'pointer' : 'default';
         },
       },
     });
