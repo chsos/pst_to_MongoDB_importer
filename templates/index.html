@@ -7362,7 +7362,19 @@ async function loadAttTypesChart() {
         },
         onClick: (evt, elements) => {
           if (!elements.length) return;
-          const folder = attLabelsRaw[elements[0].index];
+          const ext = attLabelsRaw[elements[0].index].toLowerCase();
+          // Map extension → actual folder name (mirrors _EXT_FOLDER in app.py)
+          const extToFolder = {
+            pdf: 'pdf',
+            doc: 'Word', docx: 'Word', rtf: 'Word', odt: 'Word',
+            xls: 'Excel', xlsx: 'Excel', csv: 'Excel', tsv: 'Excel', ods: 'Excel',
+            ppt: 'PowerPoint', pptx: 'PowerPoint', odp: 'PowerPoint',
+            jpg: 'Images', jpeg: 'Images', png: 'Images', gif: 'Images',
+            bmp: 'Images', tiff: 'Images', tif: 'Images', svg: 'Images', webp: 'Images',
+            mp4: 'Videos', avi: 'Videos', mov: 'Videos', wmv: 'Videos', mkv: 'Videos',
+            txt: 'Text', log: 'Text', xml: 'Text', json: 'Text', html: 'Text', htm: 'Text',
+          };
+          const folder = extToFolder[ext] || ext;
           browseByFolder(folder);
         },
         onHover: (evt, elements) => {
