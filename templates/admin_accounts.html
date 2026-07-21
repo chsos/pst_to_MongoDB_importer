@@ -24,6 +24,7 @@
             <th>Name</th>
             <th>Provider</th>
             <th>Plan</th>
+            <th>Phone</th>
             <th>Emails</th>
             <th>Attachments</th>
             <th>Signed Up</th>
@@ -47,6 +48,7 @@
               {% endif %}
             </td>
             <td class="text-muted small text-capitalize">{{ u.plan or 'free' }}</td>
+            <td class="text-muted small">{{ u.phone or '—' }}</td>
             <td class="text-muted small text-end">{{ '{:,}'.format(u.email_count) }}</td>
             <td class="text-muted small text-end">{{ '{:,}'.format(u.attach_count) }}</td>
             <td class="text-muted small">{{ u.created_at.strftime('%Y-%m-%d') if u.created_at else '—' }}</td>

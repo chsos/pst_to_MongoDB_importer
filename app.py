@@ -861,7 +861,7 @@ def suggestions():
 def admin_accounts():
     if not (current_user.is_authenticated and current_user.email.lower() in {e.lower() for e in ADMIN_EMAILS}):
         return redirect(url_for("login_page"))
-    users = list(get_users_col().find({}, {"_id":0,"email":1,"name":1,"provider":1,"created_at":1,"last_login":1,"plan":1,"sms_consent":1})
+    users = list(get_users_col().find({}, {"_id":0,"email":1,"name":1,"provider":1,"created_at":1,"last_login":1,"plan":1,"sms_consent":1,"phone":1})
                  .sort("created_at", -1))
 
     def _dir_bytes(path: str) -> int:
@@ -1016,6 +1016,7 @@ def register_local():
     name          = (request.form.get("name")     or "").strip()
     email         = (request.form.get("email")    or "").strip().lower()
     password      = (request.form.get("password") or "").strip()
+    phone         = (request.form.get("phone")    or "").strip()
     terms_consent = request.form.get("terms_consent")
     sms_consent   = request.form.get("sms_consent")
     if not email or not password or not name or not terms_consent:
@@ -1039,6 +1040,7 @@ def register_local():
         "created_at":    datetime.datetime.utcnow(),
         "last_login":    datetime.datetime.utcnow(),
         "sms_consent":   bool(sms_consent),
+        "phone":         phone,
     }
     users.insert_one(doc)
     login_user(User(doc), remember=True)
@@ -1050,14 +1052,16 @@ def register_local():
         body_plain = (
             f"PSTBrowser Text Alert Subscription (via registration)\n\n"
             f"Name:  {name}\n"
-            f"Email: {email}\n\n"
+            f"Email: {email}\n"
+            f"Phone: {phone or '(not provided)'}\n\n"
             f"Terms of Service & Privacy Policy: Agreed\n"
             f"SMS Marketing Consent: {sms_line}"
         )
         body_html = (
             f"<h3>PSTBrowser Text Alert Subscription (via registration)</h3>"
             f"<p><strong>Name:</strong> {name}<br>"
-            f"<strong>Email:</strong> {email}</p>"
+            f"<strong>Email:</strong> {email}<br>"
+            f"<strong>Phone:</strong> {phone or '(not provided)'}</p>"
             f"<p><strong>Terms of Service &amp; Privacy Policy:</strong> Agreed<br>"
             f"<strong>SMS Marketing Consent:</strong> {sms_line.replace(chr(10), '<br>')}</p>"
         )
