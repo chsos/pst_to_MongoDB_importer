@@ -65,6 +65,13 @@ RECAPTCHA_SECRET_KEY = os.environ.get("RECAPTCHA_SECRET_KEY", "6LcPOTctAAAAAGQ33
 
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
 SMTP_HOST      = os.environ.get("SMTP_HOST",     "")
+
+# ---------------------------------------------------------------------------
+# Twilio SMS config — set as environment variables in production
+# ---------------------------------------------------------------------------
+TWILIO_ACCOUNT_SID = os.environ.get("TWILIO_ACCOUNT_SID", "")
+TWILIO_AUTH_TOKEN  = os.environ.get("TWILIO_AUTH_TOKEN",  "")
+TWILIO_FROM_NUMBER = os.environ.get("TWILIO_FROM_NUMBER", "")  # e.g. +15551234567
 SMTP_PORT      = int(os.environ.get("SMTP_PORT", "587"))
 SMTP_USER      = os.environ.get("SMTP_USER",     "")
 SMTP_PASSWORD  = os.environ.get("SMTP_PASSWORD", "")
@@ -754,6 +761,19 @@ def _send_notification_email(to_addr: str, subject: str, body_plain: str, body_h
         app.logger.error("Notification email failed: %s", e)
 
 
+def _send_sms(to_number: str, body: str):
+    """Send an SMS via Twilio. No-ops silently if Twilio is not configured."""
+    if not (TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN and TWILIO_FROM_NUMBER and to_number):
+        return
+    try:
+        from twilio.rest import Client as _TwilioClient
+        client = _TwilioClient(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+        client.messages.create(to=to_number, from_=TWILIO_FROM_NUMBER, body=body)
+    except Exception as e:
+        print(f"[SMS ERROR] Twilio send to {to_number} failed: {e}", flush=True)
+        app.logger.error("Twilio SMS failed: %s", e)
+
+
 def _verify_recaptcha(token: str, min_score: float = 0.5) -> bool:
     """Return True if the reCAPTCHA v3 token is valid and score >= min_score."""
     if not RECAPTCHA_SECRET_KEY or not token:
@@ -809,6 +829,10 @@ def sms_authorization():
             body_plain, body_html,
         )
         if sms_consent:
+            _send_sms(phone,
+                "Welcome to PSTBrowser! You're subscribed to text alerts. "
+                "Msg & data rates may apply. Reply STOP to unsubscribe, HELP for help."
+            )
             flash("Thank you! You have been signed up for PSTBrowser text alerts.", "success")
         else:
             flash("Thank you! You HAVE agreed to the terms of service. You have NOT been signed up for PSTBrowser text alerts.", "success")
@@ -1070,6 +1094,11 @@ def register_local():
             f"Text Alert Subscription (registration) — {email}",
             body_plain, body_html,
         )
+        if phone:
+            _send_sms(phone,
+                "Welcome to PSTBrowser! You're subscribed to text alerts. "
+                "Msg & data rates may apply. Reply STOP to unsubscribe, HELP for help."
+            )
     flash(f"Welcome, {name}! Your account has been created.", "success")
     return redirect(url_for("index") + "?tab=import")
 

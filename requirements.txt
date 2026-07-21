@@ -49,3 +49,4 @@ typing_extensions==4.15.0
 uharfbuzz==0.54.1
 urllib3==2.7.0
 Werkzeug==3.1.8
+twilio
