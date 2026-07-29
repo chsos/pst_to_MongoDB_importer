@@ -729,6 +729,13 @@ def _send_welcome_email(to_addr: str, name: str):
         f"<p>Thank you,<br>PSTBrowser</p>"
     )
     _send_notification_email(to_addr, subject, body_plain, body_html)
+    # Admin signup notification
+    _send_notification_email(
+        "support@pstbrowser.com",
+        f"New signup — {name} ({to_addr})",
+        f"New user registered:\n\nName:  {name}\nEmail: {to_addr}",
+        f"<p>New user registered:</p><p><strong>Name:</strong> {name}<br><strong>Email:</strong> {to_addr}</p>",
+    )
 
 
 def _send_notification_email(to_addr: str, subject: str, body_plain: str, body_html: str):
