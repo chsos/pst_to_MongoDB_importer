@@ -3868,7 +3868,8 @@ def _build_cache_for_folder(src_dir: str, cache_dir: str,
     if not os.path.isdir(src_dir):
         return 0
     files = sorted(f for f in os.listdir(src_dir)
-                   if os.path.splitext(f)[1].lower() in exts)
+                   if os.path.splitext(f)[1].lower() in exts
+                   and ".__ocr_tmp__." not in f)
     if not files:
         return 0
     os.makedirs(cache_dir, exist_ok=True)
@@ -6636,9 +6637,26 @@ def _ocr_autoresume():
         txt_dir = os.path.join(ATTACH_DIR, uid, "pdf_text")
         if not os.path.isdir(pdf_dir):
             continue
+        # Clean up stale tmp files left by a previously interrupted OCR run.
+        # Without this, _run_ocr_job skips them as "already being processed"
+        # and the real PDF stays pending forever.
+        for stale in os.listdir(pdf_dir):
+            if ".__ocr_tmp__." in stale:
+                try:
+                    os.remove(os.path.join(pdf_dir, stale))
+                except Exception:
+                    pass
+        if os.path.isdir(txt_dir):
+            for stale in os.listdir(txt_dir):
+                if ".__ocr_tmp__." in stale:
+                    try:
+                        os.remove(os.path.join(txt_dir, stale))
+                    except Exception:
+                        pass
         pending = [
             f for f in sorted(os.listdir(pdf_dir))
             if f.lower().endswith(".pdf")
+            and ".__ocr_tmp__." not in f
             and not os.path.isfile(os.path.join(txt_dir, os.path.splitext(f)[0] + ".txt"))
         ]
         if not pending:
