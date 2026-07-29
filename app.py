@@ -532,8 +532,12 @@ def billing_create_checkout():
 
 @app.route("/billing/success")
 def billing_success():
-    flash("🎉 Subscription activated! Your storage quota has been upgraded.", "success")
-    return redirect(url_for("billing_page"))
+    return render_template("billing_success.html",
+        title="Subscription Activated!",
+        message="Your storage quota has been upgraded. You can now import more data.",
+        redirect_url=url_for("billing_page"),
+        button_label="Go to Billing",
+    )
 
 
 STRIPE_PRICE_VIP = os.environ.get("STRIPE_PRICE_VIP", "price_1ToWBkDMYOvxQd9SY9NbBdum")
@@ -599,8 +603,12 @@ def billing_vip_success():
     body_plain = "A VIP Setup payment has been completed. Check the vip_orders collection for details."
     body_html  = "<p>A VIP Setup payment has been completed. Check <strong>vip_orders</strong> in MongoDB for details.</p>"
     _send_notification_email("andy@computerhelpsos.com", subject, body_plain, body_html)
-    flash("🎉 Payment received! We'll contact you shortly to schedule your remote session.", "success")
-    return redirect(url_for("billing_page"))
+    return render_template("billing_success.html",
+        title="Payment Received!",
+        message="We'll contact you shortly to schedule your remote session.",
+        redirect_url=url_for("billing_page"),
+        button_label="Go to Billing",
+    )
 
 
 @app.route("/billing/portal", methods=["POST"])
