@@ -41,7 +41,7 @@ else
 fi
 
 # ── MongoDB dump ───────────────────────────────
-echo "[3/3] Dumping MongoDB ..."
+echo "[3/4] Dumping MongoDB (all databases, incl. mynotes365) ..."
 # Auth credentials come from MONGO_URI in the app's .env (if set)
 MONGO_URI=$(grep -E '^MONGO_URI=' "$APP_DIR/.env" 2>/dev/null | cut -d= -f2- || true)
 if mongodump --quiet ${MONGO_URI:+--uri="$MONGO_URI"} --out="$DEST/mongodb_dump"; then
@@ -49,6 +49,18 @@ if mongodump --quiet ${MONGO_URI:+--uri="$MONGO_URI"} --out="$DEST/mongodb_dump"
 else
     echo "      WARNING: mongodump failed"
 fi
+
+# ── mynotes365 app, SSL & config ──────────────
+echo "[4/4] Backing up mynotes365 app & config ..."
+mkdir -p "$DEST/mynotes365"
+if [ -d /root/mynotes365 ]; then
+    rsync -a --delete --exclude venv --exclude __pycache__ /root/mynotes365/ "$DEST/mynotes365/app/"
+fi
+[ -d /etc/ssl/mynotes365 ] && rsync -a --delete /etc/ssl/mynotes365/ "$DEST/mynotes365/ssl/"
+[ -f /etc/nginx/sites-available/mynotes365 ] && cp /etc/nginx/sites-available/mynotes365 "$DEST/mynotes365/nginx-vhost"
+[ -f /etc/systemd/system/mynotes365.service ] && cp /etc/systemd/system/mynotes365.service "$DEST/mynotes365/"
+[ -d /etc/letsencrypt ] && rsync -a --delete /etc/letsencrypt/ "$DEST/letsencrypt/"
+echo "      Done — $(du -sh "$DEST/mynotes365" | cut -f1) (+ letsencrypt $(du -sh "$DEST/letsencrypt" 2>/dev/null | cut -f1 || echo 0))"
 
 # ── Rotate old backups ────────────────────────
 echo "Rotating backups older than $KEEP_DAYS days ..."
