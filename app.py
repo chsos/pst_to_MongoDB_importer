@@ -176,6 +176,12 @@ app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = None  # no size limit
 app.config["SECRET_KEY"]         = SECRET_KEY
 
+
+@app.context_processor
+def inject_current_year():
+    """Footer copyright year — rendered per request so it never goes stale."""
+    return {"current_year": datetime.date.today().year}
+
 # ---------------------------------------------------------------------------
 # Flask-Login
 # ---------------------------------------------------------------------------
