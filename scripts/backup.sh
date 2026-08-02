@@ -37,6 +37,10 @@ DOM=$(date +%d)
 KUMA_PUSH_URL="https://status.computerhelpsos.com/api/push/a74a2d0da8f3d9b031ca0b4f"
 FAIL=0
 
+# Uptime Kuma box — pulled from here, so that box holds no Storage Box credentials
+KUMA_HOST="root@198.251.75.128"
+KUMA_SSH="ssh -i /root/.ssh/kuma_ed25519 -o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new"
+
 # Secondary offsite copy — IONOS backup1 (different vendor, weekly)
 B1_HOST="root@74.208.191.225"
 B1_SSH="ssh -i /root/.ssh/backup1_ed25519 -o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new"
@@ -100,6 +104,28 @@ cp -a --parents /etc/nginx/sites-available \
                 /etc/systemd/system/pstbrowser.service \
                 "$STAGING/etc/" 2>/dev/null || echo "  (some /etc paths missing — continuing)"
 
+# ── Pull the Uptime Kuma box (monitors, notifications, cert, nginx) ───────────
+# kuma.db is WAL-mode and written every 60s, so a raw file copy can be torn.
+# Take a consistent snapshot through SQLite's online backup API first.
+# Pulling (rather than pushing from Kuma) keeps Storage Box credentials off that
+# host entirely. Losing this DB regenerates the push tokens, which would silently
+# break the backup heartbeats on this box and the Plesk box.
+echo "[kuma] ..."
+rm -rf "$STAGING/kuma"
+mkdir -p "$STAGING/kuma"
+if $KUMA_SSH "$KUMA_HOST" "docker exec uptime-kuma sqlite3 /app/data/kuma.db \".backup /app/data/kuma-snapshot.db\""; then
+    run_rsync "kuma-pull" -a --timeout=300 -e "$KUMA_SSH" \
+        "$KUMA_HOST:/opt/uptime-kuma/data/kuma-snapshot.db" \
+        "$KUMA_HOST:/opt/uptime-kuma/compose.yaml" \
+        "$KUMA_HOST:/etc/nginx/sites-available" \
+        "$KUMA_HOST:/etc/letsencrypt" \
+        "$STAGING/kuma/"
+    $KUMA_SSH "$KUMA_HOST" "rm -f /opt/uptime-kuma/data/kuma-snapshot.db"
+else
+    echo "[kuma] snapshot FAILED — not shipping a possibly-torn database"
+    FAIL=1
+fi
+
 # ── Rsync everything to the Storage Box ───────────────────────────────────────
 RS=(-a --timeout=300 -e "$SSH_CMD" "${LINKDEST[@]}")
 
@@ -107,6 +133,7 @@ run_rsync "pst_files"    "${RS[@]}" /mnt/HC_Volume_106058598/pst_files   "$SB:$D
 run_rsync "attachments"  "${RS[@]}" /mnt/HC_Volume_106058598/Attachments "$SB:$DEST/"
 run_rsync "mongodb"      "${RS[@]}" "$STAGING/mongodb_dump"              "$SB:$DEST/"
 run_rsync "etc-configs"  "${RS[@]}" "$STAGING/etc"                       "$SB:$DEST/"
+run_rsync "kuma"         "${RS[@]}" "$STAGING/kuma"                      "$SB:$DEST/"
 run_rsync "pstbrowser"   "${RS[@]}" --exclude venv --exclude __pycache__ \
                          "$APP_DIR"                                      "$SB:$DEST/"
 run_rsync "mynotes365"   "${RS[@]}" --exclude venv --exclude __pycache__ \
