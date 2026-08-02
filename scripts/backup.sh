@@ -1,11 +1,20 @@
 #!/bin/bash
 # PST Browser + MyNotes365 — nightly offsite backup to Hetzner Storage Box
 #
-# Destination: u644073.your-storagebox.de (1 TB, Falkenstein), SSH key auth.
-# Layout on the box:  backups/daily.YYYY-MM-DD/  — hardlink-rotated via
-# rsync --link-dest, so each daily snapshot only costs the changed bytes.
-# Keeps the last 7 dailies. On success, pings the Uptime Kuma push monitor;
-# if Kuma gets no ping for >25h it alerts (SMS + email) — no more silent failures.
+# Primary:   u644073.your-storagebox.de (1 TB, Falkenstein), SSH key auth.
+# Layout on the box:  backups/{daily,weekly,monthly}.YYYY-MM-DD/  — hardlink-
+# rotated via rsync --link-dest, so each snapshot only costs the changed bytes.
+# Sunday's daily is promoted to a weekly and the 1st of the month to a monthly
+# with `cp -al` (hardlinks, near-zero cost). Keeps 7 dailies + 4 weeklies +
+# 6 monthlies ≈ 6 months of history, so corruption found late is still fixable.
+#
+# Secondary: IONOS backup1 (74.208.191.225), a DIFFERENT vendor, so a lost or
+# suspended Hetzner account cannot take out both copies. Weekly (Sunday) copy of
+# the irreplaceable parts only — mongodump + /etc configs + both app dirs. The
+# PSTs are deliberately excluded: 122 GB that users could re-upload.
+#
+# On success, pings the Uptime Kuma push monitor; if Kuma gets no ping for >25h
+# it alerts (SMS + email) — no more silent failures.
 #
 # Cron:  0 3 * * * /root/pst_to_MongoDB_importer/scripts/backup.sh >> /var/log/pstbrowser-backup.log 2>&1
 
@@ -20,9 +29,19 @@ DATE=$(date +%Y-%m-%d)
 DEST="$REMOTE_BASE/daily.$DATE"
 STAGING="/mnt/HC_Volume_106058598/backup_staging"
 APP_DIR="/root/pst_to_MongoDB_importer"
-KEEP=7
+KEEP_DAILY=7
+KEEP_WEEKLY=4
+KEEP_MONTHLY=6
+DOW=$(date +%u)   # 1=Mon .. 7=Sun
+DOM=$(date +%d)
 KUMA_PUSH_URL="https://status.computerhelpsos.com/api/push/a74a2d0da8f3d9b031ca0b4f"
 FAIL=0
+
+# Secondary offsite copy — IONOS backup1 (different vendor, weekly)
+B1_HOST="root@74.208.191.225"
+B1_SSH="ssh -i /root/.ssh/backup1_ed25519 -o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new"
+B1_BASE="/backups/pstbrowser"
+B1_KEEP=4
 
 # Prevent overlapping runs (e.g. cron firing while the initial seed is running)
 exec 9>/var/lock/pstbrowser-backup.lock
@@ -45,7 +64,11 @@ run_rsync() {
 }
 
 # ── Find previous snapshot for hardlink rotation ──────────────────────────────
-PREV=$($SSH_CMD "$SB" ls "$REMOTE_BASE" 2>/dev/null | grep '^daily\.' | grep -v "daily.$DATE" | sort | tail -1 || true)
+# Any tier will do — sort on the date field so a gap longer than the daily
+# retention still links against the newest weekly/monthly instead of re-seeding.
+PREV=$($SSH_CMD "$SB" ls "$REMOTE_BASE" 2>/dev/null \
+       | grep -E '^(daily|weekly|monthly)\.' | grep -v "\.$DATE\$" \
+       | sort -t. -k2 | tail -1 || true)
 LINKDEST=()
 if [ -n "$PREV" ]; then
     LINKDEST=(--link-dest="../$PREV")
@@ -89,12 +112,70 @@ run_rsync "pstbrowser"   "${RS[@]}" --exclude venv --exclude __pycache__ \
 run_rsync "mynotes365"   "${RS[@]}" --exclude venv --exclude __pycache__ \
                          /root/mynotes365                                "$SB:$DEST/"
 
-# ── Rotate: keep last $KEEP dailies on the box ────────────────────────────────
-echo "Rotating (keep $KEEP) ..."
-$SSH_CMD "$SB" ls "$REMOTE_BASE" 2>/dev/null | grep '^daily\.' | sort | head -n -$KEEP | while read -r old; do
-    echo "  Removing $old"
-    $SSH_CMD "$SB" rm -rf "$REMOTE_BASE/$old"
-done
+# ── Promote today's daily to weekly / monthly (hardlink copy, ~free) ──────────
+promote() {
+    local tier=$1
+    if $SSH_CMD "$SB" ls "$REMOTE_BASE" 2>/dev/null | grep -q "^$tier\.$DATE\$"; then
+        echo "[$tier] $tier.$DATE already exists — skipping."
+        return
+    fi
+    echo "[$tier] promoting daily.$DATE -> $tier.$DATE ..."
+    if $SSH_CMD "$SB" cp -al "$REMOTE_BASE/daily.$DATE" "$REMOTE_BASE/$tier.$DATE"; then
+        echo "[$tier] done"
+    else
+        echo "[$tier] FAILED"
+        FAIL=1
+    fi
+}
+
+# Only promote a snapshot we know is complete.
+if [ "$FAIL" -eq 0 ]; then
+    [ "$DOW" = "7" ]  && promote weekly
+    [ "$DOM" = "01" ] && promote monthly
+fi
+
+# ── Weekly secondary copy to IONOS backup1 (different vendor) ─────────────────
+if [ "$DOW" = "7" ] && [ "$FAIL" -eq 0 ]; then
+    echo "[backup1] weekly secondary copy ..."
+    if $B1_SSH "$B1_HOST" "mkdir -p $B1_BASE/snap.$DATE"; then
+        B1_PREV=$($B1_SSH "$B1_HOST" "ls -d $B1_BASE/snap.* 2>/dev/null" \
+                  | grep -v "snap\.$DATE\$" | sort | tail -1 || true)
+        B1_LINK=()
+        if [ -n "$B1_PREV" ]; then
+            B1_LINK=(--link-dest="$B1_PREV")
+            echo "[backup1] hardlinking against $(basename "$B1_PREV")"
+        fi
+        B1RS=(-a --timeout=300 -e "$B1_SSH" "${B1_LINK[@]}")
+
+        run_rsync "backup1-mongodb" "${B1RS[@]}" "$STAGING/mongodb_dump" \
+                  "$B1_HOST:$B1_BASE/snap.$DATE/"
+        run_rsync "backup1-etc"     "${B1RS[@]}" "$STAGING/etc" \
+                  "$B1_HOST:$B1_BASE/snap.$DATE/"
+        run_rsync "backup1-apps"    "${B1RS[@]}" --exclude venv --exclude __pycache__ \
+                  "$APP_DIR" /root/mynotes365                 "$B1_HOST:$B1_BASE/snap.$DATE/"
+
+        echo "[backup1] rotating (keep $B1_KEEP) ..."
+        $B1_SSH "$B1_HOST" "cd $B1_BASE && ls -d snap.* 2>/dev/null | sort | head -n -$B1_KEEP | xargs -r rm -rf"
+        echo "[backup1] $($B1_SSH "$B1_HOST" "df -h $B1_BASE | tail -1")"
+    else
+        echo "[backup1] UNREACHABLE — secondary copy skipped"
+        FAIL=1
+    fi
+fi
+
+# ── Rotate each tier on the box ───────────────────────────────────────────────
+rotate_tier() {
+    local tier=$1 keep=$2
+    $SSH_CMD "$SB" ls "$REMOTE_BASE" 2>/dev/null | grep "^$tier\." | sort | head -n -"$keep" | while read -r old; do
+        echo "  Removing $old"
+        $SSH_CMD "$SB" rm -rf "$REMOTE_BASE/$old"
+    done
+}
+
+echo "Rotating (keep $KEEP_DAILY daily / $KEEP_WEEKLY weekly / $KEEP_MONTHLY monthly) ..."
+rotate_tier daily   "$KEEP_DAILY"
+rotate_tier weekly  "$KEEP_WEEKLY"
+rotate_tier monthly "$KEEP_MONTHLY"
 
 # ── Report ────────────────────────────────────────────────────────────────────
 echo "Remote usage: $($SSH_CMD "$SB" df -h 2>/dev/null | tail -1)"
