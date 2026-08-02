@@ -178,6 +178,9 @@ if [ "$DOW" = "7" ] && [ "$FAIL" -eq 0 ]; then
                   "$B1_HOST:$B1_BASE/snap.$DATE/"
         run_rsync "backup1-etc"     "${B1RS[@]}" "$STAGING/etc" \
                   "$B1_HOST:$B1_BASE/snap.$DATE/"
+        # 7 MB, but it is what restores the alerting — do not leave it single-vendor.
+        run_rsync "backup1-kuma"    "${B1RS[@]}" "$STAGING/kuma" \
+                  "$B1_HOST:$B1_BASE/snap.$DATE/"
         run_rsync "backup1-apps"    "${B1RS[@]}" --exclude venv --exclude __pycache__ \
                   "$APP_DIR" /root/mynotes365                 "$B1_HOST:$B1_BASE/snap.$DATE/"
 
