@@ -1,0 +1,71 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ListTheBucket",
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucket",
+        "s3:ListBucketMultipartUploads",
+        "s3:GetBucketLocation"
+      ],
+      "Resource": "arn:aws:s3:::BUCKET_NAME"
+    },
+    {
+      "Sid": "WriteAndReadObjects",
+      "Effect": "Allow",
+      "Action": [
+        "s3:PutObject",
+        "s3:GetObject",
+        "s3:GetObjectVersion",
+        "s3:ListMultipartUploadParts",
+        "s3:AbortMultipartUpload"
+      ],
+      "Resource": "arn:aws:s3:::BUCKET_NAME/*"
+    },
+    {
+      "Sid": "UseTheBackupKmsKey",
+      "Effect": "Allow",
+      "Action": [
+        "kms:Encrypt",
+        "kms:Decrypt",
+        "kms:ReEncrypt*",
+        "kms:GenerateDataKey*",
+        "kms:DescribeKey"
+      ],
+      "Resource": "KMS_KEY_ARN"
+    },
+    {
+      "Sid": "NeverDestroyBackups",
+      "Effect": "Deny",
+      "Action": [
+        "s3:DeleteObject",
+        "s3:DeleteObjectVersion",
+        "s3:BypassGovernanceRetention",
+        "s3:PutObjectRetention",
+        "s3:PutObjectLegalHold",
+        "s3:PutBucketVersioning",
+        "s3:PutLifecycleConfiguration",
+        "s3:PutBucketPolicy",
+        "s3:DeleteBucket",
+        "s3:DeleteBucketPolicy",
+        "s3:PutEncryptionConfiguration"
+      ],
+      "Resource": [
+        "arn:aws:s3:::BUCKET_NAME",
+        "arn:aws:s3:::BUCKET_NAME/*"
+      ]
+    },
+    {
+      "Sid": "NeverDisableTheKey",
+      "Effect": "Deny",
+      "Action": [
+        "kms:DisableKey",
+        "kms:ScheduleKeyDeletion",
+        "kms:PutKeyPolicy",
+        "kms:DisableKeyRotation"
+      ],
+      "Resource": "KMS_KEY_ARN"
+    }
+  ]
+}

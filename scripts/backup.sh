@@ -47,6 +47,21 @@ B1_SSH="ssh -i /root/.ssh/backup1_ed25519 -o BatchMode=yes -o ConnectTimeout=15 
 B1_BASE="/backups/pstbrowser"
 B1_KEEP=4
 
+# Tertiary offsite copy — AWS S3 (third vendor, weekly, FULL incl. the PSTs).
+#
+# This exists because the PRIMARY backup is a Hetzner Storage Box and prod is
+# also Hetzner: one suspended account takes out both. backup1 covers that for
+# everything except the 122 G of PSTs, which until now lived on a single vendor.
+#
+# APPEND-ONLY BY DESIGN. The IAM user whose keys sit in /root/.aws/credentials
+# has PutObject but NOT DeleteObject, and the bucket has Object Lock enabled.
+# So even if this box is fully compromised, the attacker can add objects but
+# cannot destroy backup history — which is the whole point of copy #3.
+# History comes from S3 versioning, not from dated snapshot dirs.
+# Provisioned by scripts/aws/s3_setup.sh. Set S3_BUCKET="" to disable.
+S3_BUCKET="${S3_BUCKET:-}"               # e.g. pstbrowser-backup-123456789012
+S3_REGION="${S3_REGION:-us-east-1}"
+
 # Prevent overlapping runs (e.g. cron firing while the initial seed is running)
 exec 9>/var/lock/pstbrowser-backup.lock
 flock -n 9 || { echo "Another backup is already running — exiting."; exit 0; }
@@ -190,6 +205,52 @@ if [ "$DOW" = "7" ] && [ "$FAIL" -eq 0 ]; then
     else
         echo "[backup1] UNREACHABLE — secondary copy skipped"
         FAIL=1
+    fi
+fi
+
+# ── Weekly tertiary copy to AWS S3 (third vendor, append-only) ────────────────
+if [ "$DOW" = "7" ] && [ -n "$S3_BUCKET" ]; then
+    if ! command -v aws >/dev/null 2>&1; then
+        echo "[s3] aws CLI not installed — tertiary copy skipped"
+        FAIL=1
+    elif ! aws sts get-caller-identity >/dev/null 2>&1; then
+        echo "[s3] credentials missing/invalid — tertiary copy skipped"
+        FAIL=1
+    else
+        # No --delete anywhere: this box must never be able to remove an object,
+        # and the IAM policy would refuse anyway. Files deleted on prod linger
+        # in S3, which for a backup is the behaviour we want.
+        S3SYNC=(aws s3 sync --region "$S3_REGION" --only-show-errors --no-progress)
+
+        run_s3() {
+            # run_s3 <label> <src> <dst-prefix> [extra args...]
+            local label=$1 src=$2 dst=$3; shift 3
+            echo "[$label] ..."
+            if "${S3SYNC[@]}" "$src" "s3://$S3_BUCKET/$dst" "$@"; then
+                echo "[$label] done"
+            else
+                echo "[$label] FAILED (aws exit $?)"
+                FAIL=1
+            fi
+        }
+
+        # PSTs go straight to Glacier Instant Retrieval — 122 G that is written
+        # once and re-read only on a restore. ~$0.49/mo instead of ~$2.80.
+        run_s3 "s3-pst_files"   /mnt/HC_Volume_106058598/pst_files   pst/ \
+               --storage-class GLACIER_IR
+        # Attachments stay STANDARD: many small files, and Glacier IR bills a
+        # 128 KB minimum per object, which would cost more than it saves here.
+        run_s3 "s3-attachments" /mnt/HC_Volume_106058598/Attachments attachments/
+        # mongodump stays STANDARD — it is the first thing you restore.
+        run_s3 "s3-mongodb"     "$STAGING/mongodb_dump"              mongodump/
+        run_s3 "s3-etc"         "$STAGING/etc"                       etc/
+        run_s3 "s3-kuma"        "$STAGING/kuma"                      kuma/
+        run_s3 "s3-pstbrowser"  "$APP_DIR"                           apps/pstbrowser/ \
+               --exclude "venv/*" --exclude "*/__pycache__/*"
+        run_s3 "s3-mynotes365"  /root/mynotes365                     apps/mynotes365/ \
+               --exclude "venv/*" --exclude "*/__pycache__/*"
+
+        echo "[s3] $(aws s3 ls "s3://$S3_BUCKET" --recursive --summarize --region "$S3_REGION" 2>/dev/null | tail -2 | tr '\n' ' ')"
     fi
 fi
 
