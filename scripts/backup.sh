@@ -263,10 +263,19 @@ if [ "$DOW" = "7" ] && [ -n "$S3_BUCKET" ]; then
         fi
         run_s3 "s3-etc"         "$STAGING/etc"                       etc/
         run_s3 "s3-kuma"        "$STAGING/kuma"                      kuma/
+        # --no-follow-symlinks is essential here, not cosmetic: Attachments and
+        # pst_files inside the app dir are symlinks into the volume, and unlike
+        # rsync -a (which stores them as links) aws s3 sync DEREFERENCES them.
+        # Without this the 2026-08-03 seed re-uploaded ~7.9 G of already-copied
+        # data under apps/, Object-Locked for 35 days.
+        APP_EX=(--no-follow-symlinks
+                --exclude "venv/*"      --exclude ".venv/*"
+                --exclude "__pycache__/*" --exclude "*/__pycache__/*"
+                --exclude ".git/*"      --exclude "logs/*")
         run_s3 "s3-pstbrowser"  "$APP_DIR"                           apps/pstbrowser/ \
-               --exclude "venv/*" --exclude "*/__pycache__/*"
+               "${APP_EX[@]}"
         run_s3 "s3-mynotes365"  /root/mynotes365                     apps/mynotes365/ \
-               --exclude "venv/*" --exclude "*/__pycache__/*"
+               "${APP_EX[@]}"
 
         echo "[s3] $(aws s3 ls "s3://$S3_BUCKET" --recursive --summarize --region "$S3_REGION" 2>/dev/null | tail -2 | tr '\n' ' ')"
     fi
