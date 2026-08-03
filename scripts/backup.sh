@@ -59,7 +59,7 @@ B1_KEEP=4
 # cannot destroy backup history — which is the whole point of copy #3.
 # History comes from S3 versioning, not from dated snapshot dirs.
 # Provisioned by scripts/aws/s3_setup.sh. Set S3_BUCKET="" to disable.
-S3_BUCKET="${S3_BUCKET:-}"               # e.g. pstbrowser-backup-123456789012
+S3_BUCKET="${S3_BUCKET:-pstbrowser-backup-971056407616}"
 S3_REGION="${S3_REGION:-us-east-1}"
 
 # Prevent overlapping runs (e.g. cron firing while the initial seed is running)
