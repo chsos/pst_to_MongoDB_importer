@@ -38,10 +38,13 @@ APP_DIR="/root/pst_to_MongoDB_importer"
 KEEP_DAILY=7
 KEEP_WEEKLY=4
 KEEP_MONTHLY=6
-DOW=$(date +%u)   # 1=Mon .. 7=Sun
-DOM=$(date +%d)
+# Overridable so the weekly-only targets (backup1, S3) can be seeded or tested
+# on any day: DOW=7 bash scripts/backup.sh
+DOW="${DOW:-$(date +%u)}"   # 1=Mon .. 7=Sun
+DOM="${DOM:-$(date +%d)}"
 KUMA_PUSH_URL="https://status.computerhelpsos.com/api/push/a74a2d0da8f3d9b031ca0b4f"
 FAIL=0
+MONGO_OK=0   # set by the mongodump step; guards the Object-Locked S3 copy
 
 # Uptime Kuma box — pulled from here, so that box holds no Storage Box credentials
 KUMA_HOST="root@198.251.75.128"
@@ -109,9 +112,14 @@ rm -rf "$STAGING/mongodb_dump"
 mkdir -p "$STAGING"
 if mongodump --quiet ${MONGO_URI:+--uri="$MONGO_URI"} --out="$STAGING/mongodb_dump"; then
     echo "[mongodump] done — $(du -sh "$STAGING/mongodb_dump" | cut -f1)"
+    MONGO_OK=1
 else
     echo "[mongodump] FAILED"
     FAIL=1
+    # A failed dump leaves a PARTIAL directory behind, and the S3 copy is
+    # Object-Locked for 35 days once written — so a truncated dump would be
+    # frozen there. Skip only that one sync; the PSTs are still worth copying.
+    MONGO_OK=0
 fi
 
 # ── Stage /etc configs (nginx, systemd units, SSL certs, letsencrypt) ─────────
@@ -248,7 +256,11 @@ if [ "$DOW" = "7" ] && [ -n "$S3_BUCKET" ]; then
         # 128 KB minimum per object, which would cost more than it saves here.
         run_s3 "s3-attachments" /mnt/HC_Volume_106058598/Attachments attachments/
         # mongodump stays STANDARD — it is the first thing you restore.
-        run_s3 "s3-mongodb"     "$STAGING/mongodb_dump"              mongodump/
+        if [ "$MONGO_OK" -eq 1 ]; then
+            run_s3 "s3-mongodb" "$STAGING/mongodb_dump"              mongodump/
+        else
+            echo "[s3-mongodb] SKIPPED — dump failed, refusing to Object-Lock a partial one"
+        fi
         run_s3 "s3-etc"         "$STAGING/etc"                       etc/
         run_s3 "s3-kuma"        "$STAGING/kuma"                      kuma/
         run_s3 "s3-pstbrowser"  "$APP_DIR"                           apps/pstbrowser/ \
