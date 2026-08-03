@@ -157,8 +157,11 @@ At 147 G, `us-east-1` list prices:
 |---|---|
 | `pst/` — 122 G Glacier IR | $0.49 |
 | Everything else — ~25 G Standard | $0.58 |
-| Requests + KMS (bucket keys on) | ~$0.05 |
+| Requests | ~$0.03 |
 | **Total** | **~$1.10** |
+
+Encryption is SSE-S3, which is free. A customer-managed KMS key would add
+**$1.00/month** — see the note below on what that would buy.
 
 Ingress is free. Full-restore egress is a one-off ~$5–10.
 
@@ -166,9 +169,13 @@ Ingress is free. Full-restore egress is a one-off ~$5–10.
 
 ## Notes and gotchas
 
-- **KMS key is the kill switch.** Disabling `alias/pstbrowser-backup` makes every
-  object unreadable immediately. The backup user is explicitly denied
-  `kms:DisableKey`, so only an admin can pull it.
+- **Encryption is SSE-S3 (AES256)**, applied automatically to every object at no
+  charge. Note what this does *not* give you: with a customer-managed KMS key,
+  disabling the key would instantly render every object unreadable — a kill
+  switch. SSE-S3 has no key of your own, so revoking access means deleting the
+  objects. That was a deliberate trade to avoid the $1/month key charge. To
+  change it later, `put-bucket-encryption` with `aws:kms` applies to newly
+  written objects; existing ones keep their original encryption until rewritten.
 - **Governance vs compliance mode.** Object Lock is set to GOVERNANCE, so an
   admin with `s3:BypassGovernanceRetention` can clean up mistakes. COMPLIANCE
   would block even the root account for the full 35 days — stronger against

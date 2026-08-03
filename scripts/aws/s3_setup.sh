@@ -22,13 +22,18 @@
 #     which the backup user does NOT have.
 #   - The backup IAM user gets PutObject/ListBucket/GetObject and NOT
 #     DeleteObject, with an explicit Deny on deletes for good measure.
-#   - SSE-KMS under a customer-managed key. Disabling that key instantly makes
-#     every object unreadable — a kill switch AWS's default key cannot give you.
+#   - SSE-S3 (AES256) encryption at rest, applied automatically to every object.
 #   - Versioning on, so history comes from object versions rather than the
 #     dated snapshot dirs the rsync targets use.
 #
+# Encryption is SSE-S3 rather than SSE-KMS with a customer-managed key. That
+# choice saves the $1/month KMS key charge, and costs the "kill switch" a CMK
+# would give you — with SSE-S3 there is no key of your own to disable, so
+# revoking access means deleting the objects or the bucket. To switch later,
+# use put-bucket-encryption with aws:kms; it applies to newly written objects.
+#
 # NOTE: Object Lock can ONLY be enabled when the bucket is created. If you ever
-# need to change that, it means making a new bucket. Get it right here.
+# need to change that, it means a new bucket. Get it right here.
 #
 # Idempotent: re-running skips whatever already exists.
 #
@@ -65,29 +70,12 @@ echo "  Bucket  : $BUCKET"
 echo "  Lock    : GOVERNANCE, $LOCK_DAYS days"
 echo "=========================================="
 
-# ── 1. Customer-managed KMS key ──────────────────────────────────────────────
-echo "[1/8] KMS key..."
-KEY_ARN=$(aws kms describe-key --key-id "alias/$NAME" \
-          --query KeyMetadata.Arn --output text 2>/dev/null)
-if [[ -z "$KEY_ARN" || "$KEY_ARN" == "None" ]]; then
-    KEY_ID=$(aws kms create-key \
-        --description "PST Browser S3 backup encryption" \
-        --tags TagKey=Project,TagValue=pstbrowser \
-        --query KeyMetadata.KeyId --output text) || exit 1
-    aws kms create-alias --alias-name "alias/$NAME" --target-key-id "$KEY_ID"
-    aws kms enable-key-rotation --key-id "$KEY_ID"
-    KEY_ARN=$(aws kms describe-key --key-id "$KEY_ID" --query KeyMetadata.Arn --output text)
-    echo "      created $KEY_ARN (annual rotation on)"
-else
-    echo "      exists  $KEY_ARN"
-fi
-
-# ── 2. Bucket, WITH Object Lock ──────────────────────────────────────────────
+# ── 1. Bucket, WITH Object Lock ──────────────────────────────────────────────
 # --object-lock-enabled-for-bucket also turns versioning on; both are required
 # and neither can be retrofitted later.
 # Gotcha: us-east-1 is the API default and REJECTS an explicit
 # LocationConstraint; every other region REQUIRES one.
-echo "[2/8] Bucket..."
+echo "[1/7] Bucket..."
 if aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then
     echo "      exists — NOTE: if it predates this script, verify Object Lock is on"
 else
@@ -100,46 +88,41 @@ else
     echo "      created (Object Lock + versioning enabled)"
 fi
 
-# ── 3. Block ALL public access ───────────────────────────────────────────────
+# ── 2. Block ALL public access ───────────────────────────────────────────────
 # Customer mailboxes. Nothing here is ever public, under any circumstances.
-echo "[3/8] Blocking public access..."
+echo "[2/7] Blocking public access..."
 aws s3api put-public-access-block --bucket "$BUCKET" \
     --public-access-block-configuration \
     "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
 
-# ── 4. Default encryption (SSE-KMS, our own key) ─────────────────────────────
-# BucketKeyEnabled cuts KMS request charges by ~99% — without it, every object
-# PUT is a billed KMS call and 100k attachments gets expensive.
-echo "[4/8] Default encryption..."
+# ── 3. Default encryption (SSE-S3 / AES256) ──────────────────────────────────
+# Applied server-side to every object automatically, at no charge.
+echo "[3/7] Default encryption..."
 aws s3api put-bucket-encryption --bucket "$BUCKET" \
-    --server-side-encryption-configuration "{
-        \"Rules\": [{
-            \"ApplyServerSideEncryptionByDefault\": {
-                \"SSEAlgorithm\": \"aws:kms\",
-                \"KMSMasterKeyID\": \"$KEY_ARN\"
-            },
-            \"BucketKeyEnabled\": true
+    --server-side-encryption-configuration '{
+        "Rules": [{
+            "ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "AES256"}
         }]
-    }"
+    }'
 
-# ── 5. Object Lock default retention ─────────────────────────────────────────
+# ── 4. Object Lock default retention ─────────────────────────────────────────
 # GOVERNANCE (not COMPLIANCE): an admin holding s3:BypassGovernanceRetention can
 # still clean up a mistake. The backup user cannot. COMPLIANCE would block even
 # the root account for the full window — stronger, but you would be paying to
 # store any accidental multi-GB upload for 35 days with no way out.
-echo "[5/8] Object Lock retention..."
+echo "[4/7] Object Lock retention..."
 aws s3api put-object-lock-configuration --bucket "$BUCKET" \
     --object-lock-configuration "{
         \"ObjectLockEnabled\": \"Enabled\",
         \"Rule\": {\"DefaultRetention\": {\"Mode\": \"GOVERNANCE\", \"Days\": $LOCK_DAYS}}
     }"
 
-# ── 6. Lifecycle ─────────────────────────────────────────────────────────────
+# ── 5. Lifecycle ─────────────────────────────────────────────────────────────
 # Old VERSIONS are expired; current objects are never touched. The 90-day
 # figure for pst/ is not arbitrary — Glacier IR bills a 90-day minimum, so
 # deleting a version sooner incurs an early-deletion charge for the remainder.
 # Everything else is STANDARD with no minimum, so 30 days is fine there.
-echo "[6/8] Lifecycle rules..."
+echo "[5/7] Lifecycle rules..."
 aws s3api put-bucket-lifecycle-configuration --bucket "$BUCKET" \
     --lifecycle-configuration '{
         "Rules": [
@@ -167,13 +150,13 @@ aws s3api put-bucket-lifecycle-configuration --bucket "$BUCKET" \
 # and a failed upload leaves orphaned parts you are billed for but cannot see
 # with `aws s3 ls`.
 
-# ── 7. Tags ──────────────────────────────────────────────────────────────────
-echo "[7/8] Tagging..."
+# ── 6. Tags ──────────────────────────────────────────────────────────────────
+echo "[6/7] Tagging..."
 aws s3api put-bucket-tagging --bucket "$BUCKET" \
     --tagging 'TagSet=[{Key=Project,Value=pstbrowser},{Key=ManagedBy,Value=s3_setup.sh}]'
 
-# ── 8. Verify ────────────────────────────────────────────────────────────────
-echo "[8/8] Verifying..."
+# ── 7. Verify ────────────────────────────────────────────────────────────────
+echo "[7/7] Verifying..."
 echo "  Versioning : $(aws s3api get-bucket-versioning --bucket "$BUCKET" --query Status --output text)"
 echo "  Encryption : $(aws s3api get-bucket-encryption --bucket "$BUCKET" \
                         --query 'ServerSideEncryptionConfiguration.Rules[0].ApplyServerSideEncryptionByDefault.SSEAlgorithm' \
@@ -193,17 +176,21 @@ Bucket ready: s3://$BUCKET
 ==========================================
 
 NEXT — create the append-only backup user. Run these yourself; the last
-command prints the secret key exactly once, and I never see or handle it.
+command prints the secret key exactly once.
 
-  sed -e "s|BUCKET_NAME|$BUCKET|g" -e "s|KMS_KEY_ARN|$KEY_ARN|g" \\
-      $SCRIPT_DIR/s3-backup-policy.json > /tmp/pol.json
+NOTE for Git Bash on Windows: aws.exe is a native binary and cannot resolve
+Git Bash paths like /tmp, so the policy file is written beside this script
+and referenced by a plain relative path, which works on both platforms.
+
+  cd $SCRIPT_DIR
+  sed "s|BUCKET_NAME|$BUCKET|g" s3-backup-policy.json > pol.json
 
   aws iam create-user --user-name pstbrowser-backup
   aws iam put-user-policy --user-name pstbrowser-backup \\
-      --policy-name pstbrowser-s3-append-only --policy-document file:///tmp/pol.json
+      --policy-name pstbrowser-s3-append-only --policy-document file://pol.json
   aws iam create-access-key --user-name pstbrowser-backup
 
-  rm -f /tmp/pol.json
+  rm -f pol.json
 
 Then ON THE PROD BOX (178.156.253.42):
 
@@ -217,10 +204,10 @@ Then ON THE PROD BOX (178.156.253.42):
   # seed it once by hand before trusting cron (147 G, allow a few hours):
   DOW=7 bash scripts/backup.sh
 
-VERIFY the append-only guarantee actually holds — this MUST fail:
+VERIFY the append-only guarantee actually holds — this MUST fail with
+AccessDenied. If it succeeds, the policy did not apply:
 
-  aws s3 rm s3://$BUCKET/pst/ --recursive --dryrun   # lists, harmless
-  aws s3api delete-object --bucket $BUCKET --key <some-key>   # expect AccessDenied
+  aws s3api delete-object --bucket $BUCKET --key <some-key>
 
 ==========================================
 EOF

@@ -24,18 +24,6 @@
       "Resource": "arn:aws:s3:::BUCKET_NAME/*"
     },
     {
-      "Sid": "UseTheBackupKmsKey",
-      "Effect": "Allow",
-      "Action": [
-        "kms:Encrypt",
-        "kms:Decrypt",
-        "kms:ReEncrypt*",
-        "kms:GenerateDataKey*",
-        "kms:DescribeKey"
-      ],
-      "Resource": "KMS_KEY_ARN"
-    },
-    {
       "Sid": "NeverDestroyBackups",
       "Effect": "Deny",
       "Action": [
@@ -55,17 +43,6 @@
         "arn:aws:s3:::BUCKET_NAME",
         "arn:aws:s3:::BUCKET_NAME/*"
       ]
-    },
-    {
-      "Sid": "NeverDisableTheKey",
-      "Effect": "Deny",
-      "Action": [
-        "kms:DisableKey",
-        "kms:ScheduleKeyDeletion",
-        "kms:PutKeyPolicy",
-        "kms:DisableKeyRotation"
-      ],
-      "Resource": "KMS_KEY_ARN"
     }
   ]
 }
