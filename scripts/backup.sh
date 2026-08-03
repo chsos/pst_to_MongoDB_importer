@@ -20,6 +20,12 @@
 
 set -uo pipefail
 
+# cron runs with PATH=/usr/bin:/bin, but the AWS CLI v2 installer puts aws in
+# /usr/local/bin. Without this the S3 step silently reports "not installed"
+# under cron while working perfectly by hand — set it here rather than in the
+# crontab so a reinstall or a re-added cron line cannot lose it.
+export PATH="/usr/local/bin:$PATH"
+
 SB_USER="u644073"
 SB_HOST="u644073.your-storagebox.de"
 SB="$SB_USER@$SB_HOST"
