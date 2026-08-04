@@ -1973,22 +1973,29 @@ def _clamscan(path: str, q: queue.Queue) -> tuple[bool, str]:
     Scan a file with ClamAV. Returns (clean, message).
     Emits keep-alive dots into q every 10 seconds so the browser stays connected.
     """
-    # clamdscan runs as the clamav user — make file world-readable so it can access it
-    try:
-        orig_mode = os.stat(path).st_mode
-        os.chmod(path, orig_mode | 0o004)
-    except Exception:
-        orig_mode = None
+    # clamdscan first: it hands the file to the resident clamd instead of loading
+    # the ~1 GB signature database per invocation, which prod cannot afford next
+    # to mongod on a 4 GB box. --fdpass passes the already-open descriptor, so
+    # clamd never traverses /root/ (0700) nor needs to read the file as the
+    # clamav user — that is what made an earlier attempt at this order fail with
+    # "Access denied" (a690433), and why no chmod dance is needed here any more.
+    # clamscan stays as the fallback for hosts running no daemon.
+    #
+    # WARNING: clamdscan IGNORES --max-filesize/--max-scansize; those limits come
+    # only from MaxFileSize/MaxScanSize in clamd.conf. At the packaged defaults
+    # (25M) clamd silently returns OK on anything larger WITHOUT scanning it —
+    # every real PST here is >250 MB. Prod is set to 4000M; a rebuilt host must
+    # match it or uploads go unscanned while the landing page claims otherwise.
+    scanners = (
+        ("clamdscan", ["--no-summary", "--fdpass"]),
+        ("clamscan",  ["--no-summary", "--max-filesize=4000M", "--max-scansize=4000M"]),
+    )
+    last_err = "ClamAV not installed"
 
-    def _restore_mode():
-        if orig_mode is not None:
-            try: os.chmod(path, orig_mode)
-            except Exception: pass
-
-    for scanner in ("clamscan", "clamdscan"):
+    for scanner, scanner_args in scanners:
         try:
             proc = subprocess.Popen(
-                [scanner, "--no-summary", "--max-filesize=4000M", "--max-scansize=4000M", path],
+                [scanner, *scanner_args, path],
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                 text=True, encoding="utf-8", errors="replace",
             )
@@ -2018,7 +2025,6 @@ def _clamscan(path: str, q: queue.Queue) -> tuple[bool, str]:
             stdout = "".join(output_lines).strip()
             stderr = "".join(stderr_lines).strip()
             combined = (stdout or stderr)[:200]
-            _restore_mode()
 
             if proc.returncode == 0:
                 return True, "Clean"
@@ -2027,17 +2033,19 @@ def _clamscan(path: str, q: queue.Queue) -> tuple[bool, str]:
                     if "FOUND" in line:
                         return False, line.strip()
                 return False, "Virus detected"
-            # returncode 2 = error
-            return True, f"Scan error (skipped): {combined}"
+            # returncode 2 = scanner error (daemon stopped, socket missing, file
+            # unreadable). Fall through to the next scanner rather than calling
+            # the file clean — a dead clamd must not silently pass uploads.
+            last_err = combined or f"{scanner} exited 2"
+            continue
 
         except FileNotFoundError:
             continue
         except Exception as e:
-            _restore_mode()
-            return True, f"Scan skipped: {e}"
+            last_err = str(e)
+            continue
 
-    _restore_mode()
-    return True, "ClamAV not installed — scan skipped"
+    return True, f"Scan skipped: {last_err}"
 
 
 def _run_import(job_id: str, pst_path: str, user_db: str, attach_dir: str,
