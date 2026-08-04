@@ -71,6 +71,16 @@ B1_KEEP=4
 S3_BUCKET="${S3_BUCKET:-pstbrowser-backup-971056407616}"
 S3_REGION="${S3_REGION:-us-east-1}"
 
+# Never let stray private keys ride into the offsite copies. Two unused ed25519
+# keys (k1/hk1) were dropped in the app dir on 2026-06-24 and sat in every backup
+# for six weeks before anyone noticed. That matters most for S3: it is
+# Object-Locked and the IAM user is denied DeleteObject, so anything written
+# there cannot be removed for 35 days — deletion is not an available remedy,
+# only rotation. Verified 2026-08-04 that these patterns match no legitimate
+# file in either app dir.
+KEY_EX=(--exclude "*_ed25519*" --exclude "*_rsa" --exclude "*_rsa.pub"
+        --exclude "*.pem"      --exclude "*.ppk" --exclude "id_ecdsa*")
+
 # Prevent overlapping runs (e.g. cron firing while the initial seed is running)
 exec 9>/var/lock/pstbrowser-backup.lock
 flock -n 9 || { echo "Another backup is already running — exiting."; exit 0; }
@@ -163,9 +173,9 @@ run_rsync "attachments"  "${RS[@]}" /mnt/HC_Volume_106058598/Attachments "$SB:$D
 run_rsync "mongodb"      "${RS[@]}" "$STAGING/mongodb_dump"              "$SB:$DEST/"
 run_rsync "etc-configs"  "${RS[@]}" "$STAGING/etc"                       "$SB:$DEST/"
 run_rsync "kuma"         "${RS[@]}" "$STAGING/kuma"                      "$SB:$DEST/"
-run_rsync "pstbrowser"   "${RS[@]}" --exclude venv --exclude __pycache__ \
+run_rsync "pstbrowser"   "${RS[@]}" --exclude venv --exclude __pycache__ "${KEY_EX[@]}" \
                          "$APP_DIR"                                      "$SB:$DEST/"
-run_rsync "mynotes365"   "${RS[@]}" --exclude venv --exclude __pycache__ \
+run_rsync "mynotes365"   "${RS[@]}" --exclude venv --exclude __pycache__ "${KEY_EX[@]}" \
                          /root/mynotes365                                "$SB:$DEST/"
 
 # ── Promote today's daily to weekly / monthly (hardlink copy, ~free) ──────────
@@ -210,7 +220,7 @@ if [ "$DOW" = "7" ] && [ "$FAIL" -eq 0 ]; then
         # 7 MB, but it is what restores the alerting — do not leave it single-vendor.
         run_rsync "backup1-kuma"    "${B1RS[@]}" "$STAGING/kuma" \
                   "$B1_HOST:$B1_BASE/snap.$DATE/"
-        run_rsync "backup1-apps"    "${B1RS[@]}" --exclude venv --exclude __pycache__ \
+        run_rsync "backup1-apps"    "${B1RS[@]}" --exclude venv --exclude __pycache__ "${KEY_EX[@]}" \
                   "$APP_DIR" /root/mynotes365                 "$B1_HOST:$B1_BASE/snap.$DATE/"
 
         echo "[backup1] rotating (keep $B1_KEEP) ..."
@@ -271,7 +281,8 @@ if [ "$DOW" = "7" ] && [ -n "$S3_BUCKET" ]; then
         APP_EX=(--no-follow-symlinks
                 --exclude "venv/*"      --exclude ".venv/*"
                 --exclude "__pycache__/*" --exclude "*/__pycache__/*"
-                --exclude ".git/*"      --exclude "logs/*")
+                --exclude ".git/*"      --exclude "logs/*"
+                "${KEY_EX[@]}")
         run_s3 "s3-pstbrowser"  "$APP_DIR"                           apps/pstbrowser/ \
                "${APP_EX[@]}"
         run_s3 "s3-mynotes365"  /root/mynotes365                     apps/mynotes365/ \
