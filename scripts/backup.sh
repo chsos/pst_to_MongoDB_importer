@@ -10,7 +10,7 @@
 #
 # Secondary: IONOS backup1 (74.208.191.225), a DIFFERENT vendor, so a lost or
 # suspended Hetzner account cannot take out both copies. Weekly (Sunday) copy of
-# the irreplaceable parts only — mongodump + /etc configs + both app dirs. The
+# the irreplaceable parts only — mongodump + /etc configs + all three app dirs. The
 # PSTs are deliberately excluded: 122 GB that users could re-upload.
 #
 # On success, pings the Uptime Kuma push monitor; if Kuma gets no ping for >25h
@@ -77,7 +77,7 @@ S3_REGION="${S3_REGION:-us-east-1}"
 # Object-Locked and the IAM user is denied DeleteObject, so anything written
 # there cannot be removed for 35 days — deletion is not an available remedy,
 # only rotation. Verified 2026-08-04 that these patterns match no legitimate
-# file in either app dir.
+# file in any app dir.
 KEY_EX=(--exclude "*_ed25519*" --exclude "*_rsa" --exclude "*_rsa.pub"
         --exclude "*.pem"      --exclude "*.ppk" --exclude "id_ecdsa*")
 
@@ -177,6 +177,8 @@ run_rsync "pstbrowser"   "${RS[@]}" --exclude venv --exclude __pycache__ "${KEY_
                          "$APP_DIR"                                      "$SB:$DEST/"
 run_rsync "mynotes365"   "${RS[@]}" --exclude venv --exclude __pycache__ "${KEY_EX[@]}" \
                          /root/mynotes365                                "$SB:$DEST/"
+run_rsync "backup_portal" "${RS[@]}" --exclude venv --exclude __pycache__ "${KEY_EX[@]}" \
+                         /root/backup_portal                             "$SB:$DEST/"
 
 # ── Promote today's daily to weekly / monthly (hardlink copy, ~free) ──────────
 promote() {
@@ -221,7 +223,8 @@ if [ "$DOW" = "7" ] && [ "$FAIL" -eq 0 ]; then
         run_rsync "backup1-kuma"    "${B1RS[@]}" "$STAGING/kuma" \
                   "$B1_HOST:$B1_BASE/snap.$DATE/"
         run_rsync "backup1-apps"    "${B1RS[@]}" --exclude venv --exclude __pycache__ "${KEY_EX[@]}" \
-                  "$APP_DIR" /root/mynotes365                 "$B1_HOST:$B1_BASE/snap.$DATE/"
+                  "$APP_DIR" /root/mynotes365 /root/backup_portal \
+                  "$B1_HOST:$B1_BASE/snap.$DATE/"
 
         echo "[backup1] rotating (keep $B1_KEEP) ..."
         $B1_SSH "$B1_HOST" "cd $B1_BASE && ls -d snap.* 2>/dev/null | sort | head -n -$B1_KEEP | xargs -r rm -rf"
@@ -286,6 +289,8 @@ if [ "$DOW" = "7" ] && [ -n "$S3_BUCKET" ]; then
         run_s3 "s3-pstbrowser"  "$APP_DIR"                           apps/pstbrowser/ \
                "${APP_EX[@]}"
         run_s3 "s3-mynotes365"  /root/mynotes365                     apps/mynotes365/ \
+               "${APP_EX[@]}"
+        run_s3 "s3-backup_portal" /root/backup_portal                apps/backup_portal/ \
                "${APP_EX[@]}"
 
         echo "[s3] $(aws s3 ls "s3://$S3_BUCKET" --recursive --summarize --region "$S3_REGION" 2>/dev/null | tail -2 | tr '\n' ' ')"

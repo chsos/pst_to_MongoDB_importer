@@ -20,6 +20,8 @@ import logging.handlers
 import mimetypes
 import secrets
 import bcrypt
+
+import twofa
 from flask import Flask, render_template, request, jsonify, Response, stream_with_context, send_file, send_from_directory, redirect, url_for, session, flash
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from authlib.integrations.flask_client import OAuth
@@ -231,6 +233,7 @@ _PUBLIC_ENDPOINTS = {
     "landing", "index",
     "login_page", "login_local", "register_page", "register_local",
     "auth_google", "auth_google_callback",
+    "twofa_page", "twofa_submit",
     "auth_microsoft", "auth_microsoft_callback",
     "auth_consent",
     "billing_webhook",   # Stripe must reach this without a session cookie
@@ -782,17 +785,37 @@ def _send_notification_email(to_addr: str, subject: str, body_plain: str, body_h
         app.logger.error("Notification email failed: %s", e)
 
 
+def _normalize_phone(raw: str) -> str:
+    """Best-effort E.164. Twilio infers the country from the sender otherwise,
+    which quietly fails for anything but plain 10-digit US numbers."""
+    raw = (raw or "").strip()
+    digits = "".join(ch for ch in raw if ch.isdigit())
+    if not digits:
+        return ""
+    if raw.startswith("+"):
+        return "+" + digits
+    if len(digits) == 10:
+        return "+1" + digits
+    if len(digits) == 11 and digits.startswith("1"):
+        return "+" + digits
+    return "+" + digits
+
+
 def _send_sms(to_number: str, body: str):
-    """Send an SMS via Twilio. No-ops silently if Twilio is not configured."""
+    """Send an SMS via Twilio. Returns True if it was accepted — 2FA has to be
+    able to tell a delivered code from one that never left."""
+    to_number = _normalize_phone(to_number)
     if not (TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN and TWILIO_FROM_NUMBER and to_number):
-        return
+        return False
     try:
         from twilio.rest import Client as _TwilioClient
         client = _TwilioClient(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
         client.messages.create(to=to_number, from_=TWILIO_FROM_NUMBER, body=body)
+        return True
     except Exception as e:
         print(f"[SMS ERROR] Twilio send to {to_number} failed: {e}", flush=True)
         app.logger.error("Twilio SMS failed: %s", e)
+        return False
 
 
 def _verify_recaptcha(token: str, min_score: float = 0.5) -> bool:
@@ -1037,10 +1060,146 @@ def login_local():
     if not doc or not bcrypt.checkpw(password.encode(), doc["password_hash"]):
         flash("Invalid email or password.", "danger")
         return redirect(url_for("login_page"))
+    # Password is right, but that is only the first factor. Nothing is logged
+    # in yet — the session holds an id awaiting a code, which grants nothing.
+    if twofa.is_enabled(get_users_col(), email):
+        session["pending_2fa"] = {"uid": email,
+                                  "at": datetime.datetime.utcnow().isoformat(),
+                                  "next": request.args.get("next") or ""}
+        ok, msg = twofa.send_code(get_users_col(), email, _send_sms, "PST Browser")
+        flash(msg, "info" if ok else "warning")
+        return redirect(url_for("twofa_page"))
+
     get_users_col().update_one({"_id": email}, {"$set": {"last_login": datetime.datetime.utcnow()}})
     login_user(User(doc), remember=True)
     next_url = request.args.get("next") or url_for("index")
     return redirect(next_url)
+
+
+# ── Two-step sign-in ─────────────────────────────────────────────────────────
+
+def _pending_2fa():
+    """The half-finished sign-in, or None if there isn't one or it went stale."""
+    p = session.get("pending_2fa")
+    if not p:
+        return None
+    try:
+        started = datetime.datetime.fromisoformat(p["at"])
+    except Exception:
+        started = None
+    if twofa.challenge_expired(started):
+        session.pop("pending_2fa", None)
+        return None
+    return p
+
+
+@app.route("/auth/2fa")
+def twofa_page():
+    if current_user.is_authenticated:
+        return redirect(url_for("index"))
+    p = _pending_2fa()
+    if not p:
+        flash("Your sign-in timed out. Please start again.", "warning")
+        return redirect(url_for("login_page"))
+    return render_template("twofa.html",
+                           hint=twofa.status(get_users_col(), p["uid"])["phone_hint"])
+
+
+@app.route("/auth/2fa", methods=["POST"])
+def twofa_submit():
+    p = _pending_2fa()
+    if not p:
+        flash("Your sign-in timed out. Please start again.", "warning")
+        return redirect(url_for("login_page"))
+
+    if request.form.get("resend"):
+        ok, msg = twofa.send_code(get_users_col(), p["uid"], _send_sms, "PST Browser")
+        flash(msg, "info" if ok else "warning")
+        return redirect(url_for("twofa_page"))
+
+    ok, msg = twofa.check_code(get_users_col(), p["uid"], request.form.get("code", ""))
+    if not ok:
+        flash(msg, "danger")
+        return redirect(url_for("twofa_page"))
+
+    doc = get_users_col().find_one({"_id": p["uid"]})
+    if not doc:
+        session.pop("pending_2fa", None)
+        flash("That account no longer exists.", "danger")
+        return redirect(url_for("login_page"))
+
+    session.pop("pending_2fa", None)
+    get_users_col().update_one({"_id": p["uid"]},
+                               {"$set": {"last_login": datetime.datetime.utcnow()}})
+    login_user(User(doc), remember=True)
+    if msg:
+        flash(msg, "warning")
+    return redirect(p.get("next") or url_for("index"))
+
+
+@app.route("/account/security")
+@login_required
+def security_page():
+    st = twofa.status(get_users_col(), current_user.id)
+    doc = get_users_col().find_one({"_id": current_user.id}, {"phone": 1}) or {}
+    return render_template("security.html", tf=st, phone=doc.get("phone", ""),
+                           codes=session.pop("fresh_recovery", None))
+
+
+@app.route("/account/security/2fa/start", methods=["POST"])
+@login_required
+def twofa_start():
+    """Text a code to the number on file. Registration collects a phone but
+    never checks it, so enrolment proves it works before the door is locked —
+    otherwise a typo at signup would lock someone out of their own archive."""
+    users = get_users_col()
+    phone = (request.form.get("phone") or "").strip() or \
+        (users.find_one({"_id": current_user.id}, {"phone": 1}) or {}).get("phone", "")
+    phone = _normalize_phone(phone)
+    if len(phone) < 8:
+        flash("Enter a mobile number to send the code to.", "danger")
+        return redirect(url_for("security_page"))
+    users.update_one({"_id": current_user.id}, {"$set": {"twofa_phone": phone}})
+    ok, msg = twofa.send_code(users, current_user.id, _send_sms, "PST Browser")
+    flash(msg, "info" if ok else "danger")
+    return redirect(url_for("security_page"))
+
+
+@app.route("/account/security/2fa/confirm", methods=["POST"])
+@login_required
+def twofa_confirm():
+    users = get_users_col()
+    ok, msg = twofa.check_code(users, current_user.id, request.form.get("code", ""))
+    if not ok:
+        flash(msg, "danger")
+        return redirect(url_for("security_page"))
+    doc = users.find_one({"_id": current_user.id}, {"twofa_phone": 1}) or {}
+    session["fresh_recovery"] = twofa.enable(users, current_user.id,
+                                             doc.get("twofa_phone", ""))
+    users.update_one({"_id": current_user.id},
+                     {"$set": {"phone": doc.get("twofa_phone", "")}})
+    flash("Two-step sign-in is on. Save your recovery codes.", "success")
+    return redirect(url_for("security_page"))
+
+
+@app.route("/account/security/2fa/recovery", methods=["POST"])
+@login_required
+def twofa_recovery():
+    users = get_users_col()
+    if not twofa.is_enabled(users, current_user.id):
+        flash("Two-step sign-in is not switched on.", "warning")
+        return redirect(url_for("security_page"))
+    session["fresh_recovery"] = twofa.regenerate_recovery(users, current_user.id)
+    flash("New recovery codes generated. The old ones no longer work.", "success")
+    return redirect(url_for("security_page"))
+
+
+@app.route("/account/security/2fa/disable", methods=["POST"])
+@login_required
+def twofa_off():
+    twofa.disable(get_users_col(), current_user.id)
+    flash("Two-step sign-in is off. Your password alone now signs you in.", "warning")
+    return redirect(url_for("security_page"))
 
 
 @app.route("/auth/register")

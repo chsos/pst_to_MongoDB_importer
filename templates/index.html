@@ -239,6 +239,11 @@
             <i class="bi bi-credit-card me-2 text-primary"></i>Billing &amp; plan
           </a>
         </li>
+        <li>
+          <a class="dropdown-item small" href="{{ url_for('security_page') }}">
+            <i class="bi bi-shield-lock me-2 text-success"></i>Security
+          </a>
+        </li>
         {% if current_user.provider == 'local' %}
         <li>
           <a class="dropdown-item small" href="#" data-bs-toggle="modal" data-bs-target="#changePwModal">

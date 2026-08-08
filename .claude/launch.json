@@ -4,8 +4,18 @@
     {
       "name": "pstbrowser",
       "runtimeExecutable": ".venv/Scripts/python",
-      "runtimeArgs": ["app.py"],
+      "runtimeArgs": [
+        "app.py"
+      ],
       "port": 5000
+    },
+    {
+      "name": "mynotes365",
+      "runtimeExecutable": "C:/Users/andy/PycharmProjects/mynotes365/venv/Scripts/python.exe",
+      "runtimeArgs": [
+        "C:/Users/andy/PycharmProjects/mynotes365/app.py"
+      ],
+      "port": 5001
     }
   ]
 }
