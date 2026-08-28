@@ -241,6 +241,7 @@ _PUBLIC_ENDPOINTS = {
     "reset_password", "reset_password_submit",
     "static",
     "sitemap", "robots",
+    "health",            # uptime monitoring has no session cookie
     "privacy_policy", "terms_of_service",
     "process_flow", "process_status",
 }
@@ -318,6 +319,26 @@ def get_user_id() -> str:
 
 def _get_client():
     return MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
+
+
+@app.route("/health")
+def health():
+    """Liveness *and* database reachability, for uptime monitoring.
+
+    Watching "/" is not enough: for a visitor with no session cookie — which is
+    all a monitor is — that page never touches MongoDB, so it answers 200 while
+    the database is dead. That is not hypothetical. On 2026-08-28 this server's
+    MongoDB was down for three hours and every check stayed green.
+
+    Says nothing about *why* it is unhappy: this is public, and the reason
+    belongs in the log rather than on the open internet.
+    """
+    try:
+        _get_client().admin.command("ping")
+    except Exception:
+        app.logger.exception("health check failed: database unreachable")
+        return jsonify({"status": "degraded"}), 503
+    return jsonify({"status": "ok"}), 200
 
 
 def get_db():
