@@ -1,4 +1,31 @@
-# Python
+# This repository's working tree is /root — the actual home directory of the
+# root user on the production server. Alongside the application it holds
+# ~/.ssh (private keys for backup1, the Storage Box, Kuma and more), ~/.aws,
+# ~/.mongodb, shell history, database archives and two other applications.
+#
+# So this file is an ALLOWLIST, not the usual list of things to skip:
+# everything at the top level is ignored, and only the application's own files
+# are let back in. A denylist has to be right about every dangerous path,
+# forever; this only has to be right about the handful that belong in the
+# repository. One "git add -A" run here would otherwise stage every private
+# key on the box and push it to GitHub.
+#
+# Adding a new top-level file to the app? Add a matching "!" line below.
+# Files inside the allowed directories below need nothing — they just work.
+
+/*
+
+!/.gitignore
+!/app.py
+!/pst_to_mongodb.py
+!/requirements.txt
+!/.claude/
+!/scripts/
+!/static/
+!/templates/
+
+# The original rules, kept so build litter inside the allowed directories is
+# still skipped. These come last because a later rule wins.
 __pycache__/
 *.py[cod]
 *.pyo
@@ -8,49 +35,18 @@ dist/
 build/
 .eggs/
 
-# Virtual environment
 .venv/
 venv/
 env/
 
-# IDE
 .idea/
 .vscode/
 *.iml
 
-# App data — large/sensitive, not for version control
-Attachments/
-pst_files/
-csv_uploads/
-logs/
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Secrets
-.env
-.mcp.json
-
-# Backup files
-*.bak
-*.bak.*
-
-# Diagnostic / one-off scripts (not part of the app)
-diag_*.py
-check_*.py
-find_*.py
-show_*.py
-test_*.py
-verify_*.py
-reset_*.py
-backfill_*.py
-export_*.py
-ocr_pdfs.py
-main.py
-
-# Script output logs
-*_out.txt
-*_err.txt
-flask_out.txt
-flask_err.txt
+# Never, under any circumstances, whatever else changes above.
+**/.env
+**/*.pem
+**/*.key
+**/id_rsa*
+**/id_ed25519*
+**/*_ed25519
