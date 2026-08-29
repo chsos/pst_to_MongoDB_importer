@@ -16,8 +16,10 @@
 /*
 
 !/.gitignore
+!/.gitattributes
 !/app.py
 !/pst_to_mongodb.py
+!/twofa.py
 !/requirements.txt
 !/.claude/
 !/scripts/
