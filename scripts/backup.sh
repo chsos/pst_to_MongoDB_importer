@@ -147,12 +147,19 @@ fi
 # ── Stage /etc configs (nginx, systemd units, SSL certs, letsencrypt) ─────────
 rm -rf "$STAGING/etc"
 mkdir -p "$STAGING/etc"
+# NOTE: /etc/restic-broker is deliberately NOT copied. It holds the restic
+# repository password, and putting that in the backup it unlocks is both
+# circular and unfixable later: the S3 copy is Object-Locked for 35 days, so a
+# leaked password there could not be deleted, only rotated.
 cp -a --parents /etc/nginx/sites-available \
                 /etc/ssl/mynotes365 \
                 /etc/ssl/pstbrowser \
                 /etc/letsencrypt \
                 /etc/systemd/system/mynotes365.service \
                 /etc/systemd/system/pstbrowser.service \
+                /etc/systemd/system/backupportal.service \
+                /etc/systemd/system/restic-browse.service \
+                /etc/systemd/system/restic-broker.service \
                 "$STAGING/etc/" 2>/dev/null || echo "  (some /etc paths missing — continuing)"
 
 # ── Pull the Uptime Kuma box (monitors, notifications, cert, nginx) ───────────
@@ -192,7 +199,12 @@ run_rsync "pstbrowser"   "${RS[@]}" --exclude venv --exclude __pycache__ "${KEY_
 run_rsync "mynotes365"   "${RS[@]}" --exclude venv --exclude __pycache__ "${KEY_EX[@]}" \
                          /root/mynotes365                                "$SB:$DEST/"
 run_rsync "backup_portal" "${RS[@]}" --exclude venv --exclude __pycache__ "${KEY_EX[@]}" \
-                         /root/backup_portal                             "$SB:$DEST/"
+                         /opt/backup_portal                             "$SB:$DEST/"
+# The broker that holds the repo password. KEY_EX drops its SSH key, and its
+# password lives in /etc/restic-broker, which is not copied at all - so this
+# captures the code without the credentials.
+run_rsync "restic_broker" "${RS[@]}" --exclude __pycache__ "${KEY_EX[@]}" \
+                         /opt/restic-broker                             "$SB:$DEST/"
 
 # ── Promote today's daily to weekly / monthly (hardlink copy, ~free) ──────────
 promote() {
@@ -244,7 +256,7 @@ if [ "$DOW" = "7" ] && [ "$FAIL" -eq 0 ]; then
                   "$B1_HOST:$B1_BASE/snap.$DATE/"
         [ "$LAST_RSYNC_OK" -eq 1 ] || B1_FAIL=1
         run_rsync "backup1-apps"    "${B1RS[@]}" --exclude venv --exclude __pycache__ "${KEY_EX[@]}" \
-                  "$APP_DIR" /root/mynotes365 /root/backup_portal \
+                  "$APP_DIR" /root/mynotes365 /opt/backup_portal \
                   "$B1_HOST:$B1_BASE/snap.$DATE/"
         [ "$LAST_RSYNC_OK" -eq 1 ] || B1_FAIL=1
 
@@ -313,7 +325,7 @@ if [ "$DOW" = "7" ] && [ -n "$S3_BUCKET" ]; then
                "${APP_EX[@]}"
         run_s3 "s3-mynotes365"  /root/mynotes365                     apps/mynotes365/ \
                "${APP_EX[@]}"
-        run_s3 "s3-backup_portal" /root/backup_portal                apps/backup_portal/ \
+        run_s3 "s3-backup_portal" /opt/backup_portal                apps/backup_portal/ \
                "${APP_EX[@]}"
 
         echo "[s3] $(aws s3 ls "s3://$S3_BUCKET" --recursive --summarize --region "$S3_REGION" 2>/dev/null | tail -2 | tr '\n' ' ')"
