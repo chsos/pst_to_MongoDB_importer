@@ -46,6 +46,13 @@ KUMA_PUSH_URL="https://status.computerhelpsos.com/api/push/a74a2d0da8f3d9b031ca0
 FAIL=0
 MONGO_OK=0   # set by the mongodump step; guards the Object-Locked S3 copy
 
+# Per-target outcomes for the status portal. $FAIL is global and only ever set
+# to 1, so it cannot answer "did the Kuma pull work?" once anything else failed.
+LAST_RSYNC_OK=1
+KUMA_FAIL=0
+B1_FAIL=0
+B1_RAN=0     # backup1 runs weekly; only report it on the days it actually ran
+
 # Uptime Kuma box — pulled from here, so that box holds no Storage Box credentials
 KUMA_HOST="root@198.251.75.128"
 KUMA_SSH="ssh -i /root/.ssh/kuma_ed25519 -o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new"
@@ -91,12 +98,17 @@ echo "=========================================="
 
 run_rsync() {
     # run_rsync <label> <rsync args...>
+    # Also records LAST_RSYNC_OK so a caller can tell whether ITS step failed.
+    # $FAIL is global and only ever set to 1, so it cannot answer "did the kuma
+    # pull work?" once anything else has already failed.
     local label=$1; shift
     echo "[$label] ..."
     if rsync "$@"; then
         echo "[$label] done"
+        LAST_RSYNC_OK=1
     else
         echo "[$label] FAILED (rsync exit $?)"
+        LAST_RSYNC_OK=0
         FAIL=1
     fi
 }
@@ -160,9 +172,11 @@ if $KUMA_SSH "$KUMA_HOST" "docker exec uptime-kuma sqlite3 /app/data/kuma.db \".
         "$KUMA_HOST:/etc/letsencrypt" \
         "$STAGING/kuma/"
     $KUMA_SSH "$KUMA_HOST" "rm -f /opt/uptime-kuma/data/kuma-snapshot.db"
+    KUMA_FAIL=$(( LAST_RSYNC_OK == 1 ? 0 : 1 ))
 else
     echo "[kuma] snapshot FAILED — not shipping a possibly-torn database"
     FAIL=1
+    KUMA_FAIL=1
 fi
 
 # ── Rsync everything to the Storage Box ───────────────────────────────────────
@@ -204,6 +218,7 @@ fi
 
 # ── Weekly secondary copy to IONOS backup1 (different vendor) ─────────────────
 if [ "$DOW" = "7" ] && [ "$FAIL" -eq 0 ]; then
+    B1_RAN=1
     echo "[backup1] weekly secondary copy ..."
     if $B1_SSH "$B1_HOST" "mkdir -p $B1_BASE/snap.$DATE"; then
         B1_PREV=$($B1_SSH "$B1_HOST" "ls -d $B1_BASE/snap.* 2>/dev/null" \
@@ -215,16 +230,23 @@ if [ "$DOW" = "7" ] && [ "$FAIL" -eq 0 ]; then
         fi
         B1RS=(-a --timeout=300 -e "$B1_SSH" "${B1_LINK[@]}")
 
+        # LAST_RSYNC_OK holds only the most recent transfer, so fold it in after
+        # each step: any single failure means backup1's copy is incomplete, and
+        # checking only at the end would let an early failure pass unnoticed.
         run_rsync "backup1-mongodb" "${B1RS[@]}" "$STAGING/mongodb_dump" \
                   "$B1_HOST:$B1_BASE/snap.$DATE/"
+        [ "$LAST_RSYNC_OK" -eq 1 ] || B1_FAIL=1
         run_rsync "backup1-etc"     "${B1RS[@]}" "$STAGING/etc" \
                   "$B1_HOST:$B1_BASE/snap.$DATE/"
+        [ "$LAST_RSYNC_OK" -eq 1 ] || B1_FAIL=1
         # 7 MB, but it is what restores the alerting — do not leave it single-vendor.
         run_rsync "backup1-kuma"    "${B1RS[@]}" "$STAGING/kuma" \
                   "$B1_HOST:$B1_BASE/snap.$DATE/"
+        [ "$LAST_RSYNC_OK" -eq 1 ] || B1_FAIL=1
         run_rsync "backup1-apps"    "${B1RS[@]}" --exclude venv --exclude __pycache__ "${KEY_EX[@]}" \
                   "$APP_DIR" /root/mynotes365 /root/backup_portal \
                   "$B1_HOST:$B1_BASE/snap.$DATE/"
+        [ "$LAST_RSYNC_OK" -eq 1 ] || B1_FAIL=1
 
         echo "[backup1] rotating (keep $B1_KEEP) ..."
         $B1_SSH "$B1_HOST" "cd $B1_BASE && ls -d snap.* 2>/dev/null | sort | head -n -$B1_KEEP | xargs -r rm -rf"
@@ -232,6 +254,7 @@ if [ "$DOW" = "7" ] && [ "$FAIL" -eq 0 ]; then
     else
         echo "[backup1] UNREACHABLE — secondary copy skipped"
         FAIL=1
+        B1_FAIL=1
     fi
 fi
 
@@ -311,6 +334,44 @@ rotate_tier daily   "$KEEP_DAILY"
 rotate_tier weekly  "$KEEP_WEEKLY"
 rotate_tier monthly "$KEEP_MONTHLY"
 
+# ── Report to the backup portal ───────────────────────────────────────────────
+# Same endpoint the workstations use, so every machine lands on one page at
+# backup.computerhelpsos.com/app/backup. Push-only: the portal gets a status
+# row and nothing else - no repo access, no credentials, no inbound path here.
+#
+# Reporting must never change the outcome of the backup, so failures here are
+# logged and ignored, and this runs AFTER the Kuma ping so it cannot delay the
+# alerting path.
+# report_portal <host> <exit_code> <repo> <expected_interval_hours>
+#
+# This box reports for the machines that cannot report for themselves: the Kuma
+# box is PULLED from here, and backup1 is a DESTINATION. Neither runs a backup
+# job of its own, so the only process that knows whether they are protected is
+# this one. The interval matters because backup1 is weekly - judged against a
+# nightly threshold it would show as permanently overdue.
+report_portal() {
+    local host=$1 code=$2 repo=$3 interval=${4:-24}
+    local token_file=/root/.backup_report_token
+    [ -r "$token_file" ] || { echo "  (no portal token — skipping status report)"; return 0; }
+    local token; token=$(tr -d '\r\n' < "$token_file")
+    [ -n "$token" ] || return 0
+
+    # $SECONDS is the shell builtin: seconds since this script started.
+    local payload
+    payload=$(printf '{"host":"%s","kind":"server","repo":"%s","exit_code":%d,"duration_seconds":%d,"expected_interval_hours":%d}' \
+              "$host" "$repo" "$code" "$SECONDS" "$interval")
+
+    if curl -fsS -m 20 -X POST \
+         -H "Authorization: Bearer $token" \
+         -H "Content-Type: application/json" \
+         -d "$payload" \
+         https://backup.computerhelpsos.com/api/backup/report >/dev/null 2>&1; then
+        echo "  Portal: reported $host (exit $code)."
+    else
+        echo "  (portal report for $host failed — backup itself is unaffected)"
+    fi
+}
+
 # ── Report ────────────────────────────────────────────────────────────────────
 echo "Remote usage: $($SSH_CMD "$SB" df -h 2>/dev/null | tail -1)"
 if [ "$FAIL" -eq 0 ]; then
@@ -318,6 +379,13 @@ if [ "$FAIL" -eq 0 ]; then
     curl -fsS -m 15 "$KUMA_PUSH_URL?status=up&msg=backup-ok" >/dev/null || echo "  (Kuma ping failed — check monitor)"
 else
     echo "BACKUP HAD FAILURES — skipping Kuma ping so the alert fires."
+fi
+report_portal "$(hostname)" "$FAIL"      "storagebox:$SB_HOST/$REMOTE_BASE" 24
+report_portal "kuma"       "$KUMA_FAIL"  "pulled-by:$(hostname) -> $REMOTE_BASE/kuma" 24
+# backup1 only on the weeks it actually ran: reporting success on a Monday for
+# Sunday's copy would reset its age and hide a genuinely missed week.
+if [ "$B1_RAN" -eq 1 ]; then
+    report_portal "backup1" "$B1_FAIL" "ionos:$B1_HOST:$B1_BASE" 168
 fi
 echo "Done — $(date)"
 exit $FAIL
