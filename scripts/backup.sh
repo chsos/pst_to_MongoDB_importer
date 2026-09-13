@@ -320,6 +320,7 @@ if [ "$DOW" = "7" ] && [ -n "$S3_BUCKET" ]; then
                 --exclude "venv/*"      --exclude ".venv/*"
                 --exclude "__pycache__/*" --exclude "*/__pycache__/*"
                 --exclude ".git/*"      --exclude "logs/*"
+                --exclude ".gunicorn/*"
                 "${KEY_EX[@]}")
         run_s3 "s3-pstbrowser"  "$APP_DIR"                           apps/pstbrowser/ \
                "${APP_EX[@]}"
