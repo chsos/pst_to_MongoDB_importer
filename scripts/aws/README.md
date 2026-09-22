@@ -147,6 +147,33 @@ aws s3api list-object-versions --bucket <bucket> --prefix pst/user@example.com/
 aws s3api get-object --bucket <bucket> --key <key> --version-id <id> ./restored.pst
 ```
 
+
+### After restoring MyNotes365 — from any copy, of any date
+
+**Do this before anyone uses the restored app.** Backups are never edited, so a
+restored MyNotes365 database brings back every account that was closed after
+that backup was taken. The privacy policy promises they are deleted again:
+
+```bash
+cd /root/mynotes365 && ./venv/bin/python scripts/reapply_closures.py --dry-run
+```
+
+```bash
+cd /root/mynotes365 && ./venv/bin/python scripts/reapply_closures.py
+```
+
+This applies to a restore from **any** of the three copies — the Storage Box,
+backup1 or S3 — not only the S3 one described above.
+
+The list of closed accounts is `/root/mynotes365/closed-accounts.jsonl`: one-way
+fingerprints and dates, no email addresses. It is a file beside the app rather
+than a collection precisely so that restoring the database does not roll it
+back too. **Do not restore that file from the same old backup** when only the
+database needs restoring — an older copy is missing the most recent closures.
+
+Known limit: if the whole server is rebuilt from a backup, the ledger returns
+from that same date, so any account closed after it will not be in it.
+
 ---
 
 ## Cost
