@@ -288,12 +288,34 @@ if [ "$DOW" = "7" ] && [ -n "$S3_BUCKET" ]; then
             # run_s3 <label> <src> <dst-prefix> [extra args...]
             local label=$1 src=$2 dst=$3; shift 3
             echo "[$label] ..."
-            if "${S3SYNC[@]}" "$src" "s3://$S3_BUCKET/$dst" "$@"; then
+            local out rc
+            out=$("${S3SYNC[@]}" "$src" "s3://$S3_BUCKET/$dst" "$@" 2>&1); rc=$?
+            [ -n "$out" ] && echo "$out"
+
+            if [ "$rc" -eq 0 ]; then
                 echo "[$label] done"
-            else
-                echo "[$label] FAILED (aws exit $?)"
-                FAIL=1
+                return
             fi
+
+            # aws exits 2 for "some files were skipped". Sockets, FIFOs and
+            # device nodes cannot be uploaded, and aws skips them during the
+            # LOCAL DIRECTORY WALK - before --exclude is applied - so excluding
+            # them cannot prevent it. On 2026-09-27 a gunicorn control socket
+            # inside /opt/backup_portal turned the whole nightly run red and
+            # suppressed the Kuma heartbeat, even though every byte of data had
+            # copied successfully, and even though an --exclude for that very
+            # path had been added two weeks earlier and appeared to work only
+            # because no socket existed yet.
+            #
+            # So: accept exit 2 ONLY when every line aws printed is one of those
+            # skips. Any other complaint still fails the run.
+            if [ "$rc" -eq 2 ] && ! grep -qvE '^(warning: Skipping file .*File is character special device, block special device, FIFO, or socket\.|)$' <<<"$out"; then
+                echo "[$label] done (ignored unsyncable special files: $(grep -c 'Skipping file' <<<"$out"))"
+                return
+            fi
+
+            echo "[$label] FAILED (aws exit $rc)"
+            FAIL=1
         }
 
         # PSTs go straight to Glacier Instant Retrieval — 122 G that is written
