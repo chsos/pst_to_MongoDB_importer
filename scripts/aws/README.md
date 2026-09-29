@@ -115,7 +115,17 @@ aws s3api delete-object --bucket <bucket> --key pst/<some-file>
 | `mongodump/` | staged mongodump, all DBs | Standard | 11 G |
 | `etc/` | nginx, systemd, ssl, letsencrypt | Standard | small |
 | `kuma/` | Uptime Kuma sqlite snapshot + configs | Standard | 7 M |
-| `apps/` | both app dirs incl. `.env` | Standard | small |
+| `apps/` | every app dir incl. `.env` | Standard | small |
+
+`apps/` is `pstbrowser`, `mynotes365`, `backup_portal` and `csi` — four, not the
+two this table listed until 2026-09-29.
+
+**`apps/csi/.env` is not optional.** It holds `CONTENT_KEY`, which decrypts every
+contact detail and note in the `csi` database. Restore the mongodump without it
+and you get unreadable ciphertext, not data. The same applies to any future app
+that encrypts at rest: `mongodump` runs with no `--db`, so a new database is
+covered automatically the moment it exists, but **its key is not** — the app
+directory has to be added to `scripts/backup.sh` by hand.
 
 History comes from **object versions**, not dated snapshot directories — S3 has
 no hardlinks, so the rsync rotation pattern doesn't apply. Old versions expire
