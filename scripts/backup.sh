@@ -368,11 +368,43 @@ if [ "$DOW" = "7" ] && [ -n "$S3_BUCKET" ]; then
 fi
 
 # ── Rotate each tier on the box ───────────────────────────────────────────────
+# This looked healthy for two months and was correct only by luck. The old
+# version was `ls | ... | while read old; do ssh ... rm; done`, which has two
+# defects that hide each other:
+#
+#   1. ssh inherits the loop's stdin and swallows the rest of the pipe on its
+#      first read, so only the FIRST snapshot was ever removed per run. In
+#      steady state exactly one snapshot falls out of policy per night, so one
+#      removal a night is all that is needed and nothing looked wrong. The
+#      moment two fall due at once - a night with no backup, a failed removal,
+#      or lowering KEEP_DAILY - the surplus becomes PERMANENT, because each
+#      later run still only removes one while a new one arrives. Simulated: 8
+#      dailies stays 8 after twelve normal nights. That is exactly how the
+#      identical code on the Plesk box reached 59 dailies against a keep of 7.
+#   2. The loop is a pipeline, so it runs in a subshell and cannot set FAIL.
+#      Every removal could fail and the run would still report OK and ping the
+#      heartbeat - which is what happened on the Plesk box for a month.
+#
+# The chmod-and-retry is belt-and-braces here: prod copies no unwritable
+# directories today, but the Plesk box did not either until Plesk added
+# statistics/ as dr-xr-x--- and rsync -a faithfully reproduced it.
 rotate_tier() {
-    local tier=$1 keep=$2
-    $SSH_CMD "$SB" ls "$REMOTE_BASE" 2>/dev/null | grep "^$tier\." | sort | head -n -"$keep" | while read -r old; do
+    local tier=$1 keep=$2 old victims
+    victims=$($SSH_CMD -n "$SB" ls "$REMOTE_BASE" 2>/dev/null | grep "^$tier\." | sort | head -n -"$keep")
+    [ -z "$victims" ] && return
+    for old in $victims; do
         echo "  Removing $old"
-        $SSH_CMD "$SB" rm -rf "$REMOTE_BASE/$old"
+        if $SSH_CMD -n "$SB" rm -rf "$REMOTE_BASE/$old" 2>/dev/null; then
+            continue
+        fi
+        echo "  $old would not delete — clearing write bits and retrying"
+        $SSH_CMD -n "$SB" chmod -R u+w "$REMOTE_BASE/$old" 2>/dev/null
+        if $SSH_CMD -n "$SB" rm -rf "$REMOTE_BASE/$old"; then
+            echo "  $old removed on retry"
+        else
+            echo "  RETENTION FAILED for $old — snapshots are accumulating"
+            FAIL=1
+        fi
     done
 }
 
