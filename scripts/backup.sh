@@ -200,6 +200,11 @@ run_rsync "mynotes365"   "${RS[@]}" --exclude venv --exclude __pycache__ "${KEY_
                          /root/mynotes365                                "$SB:$DEST/"
 run_rsync "backup_portal" "${RS[@]}" --exclude venv --exclude __pycache__ "${KEY_EX[@]}" \
                          /opt/backup_portal                             "$SB:$DEST/"
+# CSI (csi.abonsite.com). Its .env holds CONTENT_KEY, which decrypts every
+# contact detail and note in the csi database — without this directory the
+# mongodump of that database is unreadable ciphertext.
+run_rsync "csi"          "${RS[@]}" --exclude venv --exclude __pycache__ "${KEY_EX[@]}" \
+                         /opt/csi/app/                                  "$SB:$DEST/csi/"
 # The broker that holds the repo password. KEY_EX drops its SSH key, and its
 # password lives in /etc/restic-broker, which is not copied at all - so this
 # captures the code without the credentials.
@@ -258,6 +263,11 @@ if [ "$DOW" = "7" ] && [ "$FAIL" -eq 0 ]; then
         run_rsync "backup1-apps"    "${B1RS[@]}" --exclude venv --exclude __pycache__ "${KEY_EX[@]}" \
                   "$APP_DIR" /root/mynotes365 /opt/backup_portal \
                   "$B1_HOST:$B1_BASE/snap.$DATE/"
+        [ "$LAST_RSYNC_OK" -eq 1 ] || B1_FAIL=1
+        # Sent separately so it lands as csi/ rather than a nameless app/.
+        run_rsync "backup1-csi"     "${B1RS[@]}" --exclude venv --exclude __pycache__ "${KEY_EX[@]}" \
+                  /opt/csi/app/ \
+                  "$B1_HOST:$B1_BASE/snap.$DATE/csi/"
         [ "$LAST_RSYNC_OK" -eq 1 ] || B1_FAIL=1
 
         echo "[backup1] rotating (keep $B1_KEEP) ..."
@@ -349,6 +359,8 @@ if [ "$DOW" = "7" ] && [ -n "$S3_BUCKET" ]; then
         run_s3 "s3-mynotes365"  /root/mynotes365                     apps/mynotes365/ \
                "${APP_EX[@]}"
         run_s3 "s3-backup_portal" /opt/backup_portal                apps/backup_portal/ \
+               "${APP_EX[@]}"
+        run_s3 "s3-csi"         /opt/csi/app                         apps/csi/ \
                "${APP_EX[@]}"
 
         echo "[s3] $(aws s3 ls "s3://$S3_BUCKET" --recursive --summarize --region "$S3_REGION" 2>/dev/null | tail -2 | tr '\n' ' ')"
