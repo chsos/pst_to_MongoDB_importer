@@ -1304,6 +1304,7 @@ def register_local():
     }
     users.insert_one(doc)
     login_user(User(doc), remember=True)
+    session["signup_method"] = "email"   # picked up once by index() for the GTM sign_up event
     _send_welcome_email(email, name)
     if sms_consent:
         sms_line = ("Yes — agreed to receive recurring promotional texts:\n"
@@ -1579,6 +1580,7 @@ def auth_consent():
         get_users_col().insert_one(doc)
         session.pop("pending_oauth_user", None)
         login_user(User(doc), remember=True)
+        session["signup_method"] = pending["provider"]   # google | microsoft
         _send_welcome_email(pending["email"], pending["name"])
         if sms_consent:
             sms_line = ("Yes — agreed to receive recurring promotional texts:\n"
@@ -1680,7 +1682,8 @@ def landing():
 def index():
     if not current_user.is_authenticated:
         return render_template("landing.html")
-    return render_template("index.html")
+    # signup_method is set once at account creation; popping it makes sign_up fire exactly once
+    return render_template("index.html", signup_method=session.pop("signup_method", None))
 
 
 # ---------------------------------------------------------------------------

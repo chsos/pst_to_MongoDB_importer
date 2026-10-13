@@ -1,6 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+{% if signup_method %}
+<script>
+  // GA4 recommended sign_up event, pushed once right after account creation.
+  window.dataLayer = window.dataLayer || [];
+  window.dataLayer.push({ event: 'sign_up', method: {{ signup_method|tojson }} });
+</script>
+{% endif %}
 <!-- Google Tag Manager -->
 <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
 new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
