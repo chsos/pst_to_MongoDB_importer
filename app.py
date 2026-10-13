@@ -560,6 +560,39 @@ def billing_create_checkout():
     return redirect(session.url, code=303)
 
 
+def _checkout_conversion(session_id: str):
+    """Build the GTM dataLayer 'purchase' payload for a completed Checkout Session.
+
+    Returns None unless the session belongs to the signed-in user and is paid, so
+    a guessed or shared ?session_id= cannot fire a conversion.
+    """
+    if not (session_id and STRIPE_SECRET_KEY and session_id.startswith("cs_")):
+        return None
+    try:
+        _stripe_module.api_key = STRIPE_SECRET_KEY
+        cs = _stripe_module.checkout.Session.retrieve(session_id, expand=["line_items"])
+        user_doc = get_users_col().find_one({"_id": current_user.id}) or {}
+        if not user_doc.get("stripe_customer_id") or cs["customer"] != user_doc["stripe_customer_id"]:
+            return None
+        if cs["payment_status"] not in ("paid", "no_payment_required"):
+            return None
+        price_id  = cs["line_items"]["data"][0]["price"]["id"]
+        plan_name = next((v["name"] for v in PLANS.values()
+                          if v.get("price_id") and v["price_id"] == price_id), None)
+        if plan_name is None and price_id == STRIPE_PRICE_VIP:
+            plan_name = "VIP Setup"
+        value = (cs["amount_total"] or 0) / 100
+        return {
+            "transaction_id": cs["id"],
+            "value":          value,
+            "currency":       (cs["currency"] or "usd").upper(),
+            "plan":           plan_name or "Unknown",
+        }
+    except Exception as exc:
+        app.logger.warning("checkout conversion lookup failed for %s: %s", session_id, exc)
+        return None
+
+
 @app.route("/billing/success")
 def billing_success():
     return render_template("billing_success.html",
@@ -567,6 +600,7 @@ def billing_success():
         message="Your storage quota has been upgraded. You can now import more data.",
         redirect_url=url_for("billing_page"),
         button_label="Go to Billing",
+        conversion=_checkout_conversion(request.args.get("session_id", "")),
     )
 
 
@@ -620,7 +654,7 @@ def billing_vip_checkout():
         mode                 = "payment",
         allow_promotion_codes= True,
         metadata             = {"type": "vip_setup", "email": email, "phone": phone, "best_time": best_time},
-        success_url = url_for("billing_vip_success", _external=True),
+        success_url = url_for("billing_vip_success", _external=True) + "?session_id={CHECKOUT_SESSION_ID}",
         cancel_url  = url_for("billing_page", _external=True),
     )
     return redirect(session.url, code=303)
@@ -638,6 +672,7 @@ def billing_vip_success():
         message="We'll contact you shortly to schedule your remote session.",
         redirect_url=url_for("billing_page"),
         button_label="Go to Billing",
+        conversion=_checkout_conversion(request.args.get("session_id", "")),
     )
 
 

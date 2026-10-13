@@ -1,6 +1,27 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+{% if conversion %}
+<script>
+  // Purchase event for GTM, pushed BEFORE the container loads and only once per
+  // Checkout Session (a refresh or revisit must not count the sale again).
+  window.dataLayer = window.dataLayer || [];
+  (function () {
+    var c = {{ conversion|tojson }}, key = 'gtm_purchase_' + c.transaction_id;
+    try { if (localStorage.getItem(key)) return; localStorage.setItem(key, '1'); } catch (e) {}
+    window.dataLayer.push({
+      event: 'purchase',
+      plan: c.plan,
+      ecommerce: {
+        transaction_id: c.transaction_id,
+        value: c.value,
+        currency: c.currency,
+        items: [{ item_name: c.plan, price: c.value, quantity: 1 }]
+      }
+    });
+  })();
+</script>
+{% endif %}
 <!-- Google Tag Manager -->
 <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
 new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
